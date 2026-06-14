@@ -1,0 +1,9 @@
+/target/
+backend/target/
+backend/.env
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+.codex_read/
+.codex_tmp/
