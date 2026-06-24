@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600;700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-bg-canvas: #d6e1da;
+  --color-paper: #f1f5ef;
+  --color-panel: #e4ede7;
+  --color-panel-strong: #f8fbf7;
+  --color-track: #c9dad0;
+  --color-line-muted: rgba(16, 79, 85, 0.14);
+  --color-line-strong: rgba(16, 79, 85, 0.28);
+  --color-ink-main: #1f3734;
+  --color-ink-strong: #011502;
+  --color-ink-soft: #4e6764;
+  --color-ink-faint: #7e9388;
+  --color-accent: #32746d;
+  --color-accent-2: #9ec5ab;
+  --color-rust: #104f55;
+
+  --font-display: 'Noto Serif SC', serif;
+  --font-reading: 'Noto Serif SC', serif;
+  --font-ui: 'Noto Sans SC', 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  --shadow-soft: 0 18px 45px rgba(16, 79, 85, 0.08);
+  --shadow-paper: 0 24px 60px rgba(16, 79, 85, 0.12);
+}
+
+:root {
+  font-family: var(--font-ui);
+  color: var(--ink-main);
+  background: var(--bg-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 22%),
+    radial-gradient(circle at top left, rgba(50, 116, 109, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(158, 197, 171, 0.12), transparent 24%),
+    var(--bg-canvas);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(44, 113, 134, 0.55);
+  outline-offset: 2px;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.border-frame {
+  border: 1px solid var(--line-muted);
+}
+
+.homepage-hero-shell {
+  overflow: visible;
+}
+
+.hero-layer {
+  will-change: transform;
+}
+
+@media (max-width: 1024px) {
+  .homepage-hero-shell {
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

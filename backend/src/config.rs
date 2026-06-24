@@ -16,6 +16,7 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Result<Self, AppError> {
         dotenvy::dotenv().ok();
+        dotenvy::from_filename("backend/.env").ok();
         let jwt_secret = required("JWT_SECRET")?;
         if jwt_secret.len() < 32 {
             return Err(AppError::Config(
