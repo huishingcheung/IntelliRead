@@ -141,10 +141,13 @@ export function HomePage() {
       }
     }
 
-    void fetchData()
+    const timer = window.setTimeout(() => {
+      void fetchData()
+    }, 0)
 
     return () => {
       mounted = false
+      window.clearTimeout(timer)
     }
   }, [])
 

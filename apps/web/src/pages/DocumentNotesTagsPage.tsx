@@ -44,7 +44,13 @@ export function DocumentNotesTagsPage() {
   }, [id])
 
   useEffect(() => {
-    void fetchPageData()
+    const timer = window.setTimeout(() => {
+      void fetchPageData()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [fetchPageData])
 
   return (

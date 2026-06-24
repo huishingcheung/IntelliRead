@@ -219,7 +219,13 @@ export function DocumentReaderPage() {
   }, [id])
 
   useEffect(() => {
-    void fetchReaderData()
+    const timer = window.setTimeout(() => {
+      void fetchReaderData()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [fetchReaderData])
 
   const readingPercent = useMemo(() => {
