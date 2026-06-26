@@ -32,8 +32,10 @@ Base URL：`/api/v1`。受保护接口使用 `Authorization: Bearer <JWT>`。
 | `POST/GET` | `/documents/{id}/highlights` | 是 | JSON：段落、字符范围、颜色 / 无 | 创建或列出高亮 |
 | `PUT/DELETE` | `/highlights/{id}` | 是 | JSON：范围/颜色 / 无 | 更新或删除高亮 |
 | `GET` | `/statistics/overview` | 是 | 无 | 文档、段落、标签、标注和平均进度概览 |
+| `POST` | `/ai/selection` | 是 | JSON：`text,paragraph?,document_title?,source_language?,target_language?` | 分析划词文本，返回辅助翻译、术语、句子结构和 prompt 元数据 |
+| `POST` | `/ai/document` | 是 | JSON：`document_id?,title,paragraphs,target_language?` | 对前端传入的文档段落做无状态分析，返回摘要、高频词、术语和阅读建议 |
 
-运行服务后，OpenAPI JSON 位于 `/api-docs/openapi.json`，Swagger UI 位于 `/swagger-ui`。
+运行服务后，OpenAPI JSON 位于 `/api-docs/openapi.json`，Swagger UI 位于 `/swagger-ui`。AI 接口示例见 [AI_API_USAGE.md](AI_API_USAGE.md)。
 
 ## 导入约束
 

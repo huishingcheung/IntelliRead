@@ -27,6 +27,8 @@ pub enum AppError {
     PayloadTooLarge,
     #[error("database operation failed")]
     Database(#[from] sqlx::Error),
+    #[error("upstream service failed: {0}")]
+    Upstream(String),
     #[error("internal server error")]
     Internal,
 }
@@ -40,6 +42,14 @@ impl IntoResponse for AppError {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "INTERNAL_ERROR",
                     "internal server error".to_string(),
+                )
+            }
+            Self::Upstream(_) => {
+                tracing::error!(error = %self, "upstream request failed");
+                (
+                    StatusCode::BAD_GATEWAY,
+                    "UPSTREAM_ERROR",
+                    "AI provider request failed".to_string(),
                 )
             }
             Self::Validation(message) => {

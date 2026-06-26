@@ -34,6 +34,13 @@ async fn test_app_with_expiration(
             server_port: 3000,
             max_document_bytes,
             cors_allowed_origins: vec!["http://localhost:5173".into()],
+            ai_provider: "local-deterministic".into(),
+            ai_api_base_url: "https://api.deepseek.com".into(),
+            ai_api_key: None,
+            ai_model: "deepseek-v4-pro".into(),
+            ai_timeout_seconds: 30,
+            ai_max_output_tokens: 1200,
+            ai_thinking: "disabled".into(),
         },
     }))
 }
@@ -553,6 +560,134 @@ async fn extractor_and_route_errors_use_json_envelope() {
             .unwrap(),
         "application/json"
     );
+}
+
+#[tokio::test]
+async fn ai_selection_analysis_returns_translation_terms_and_prompt_metadata() {
+    let app = test_app(1024).await;
+    let token = register_and_login(&app, "ai-selection").await;
+
+    let (status, body) = json_request(
+        &app,
+        "POST",
+        "/api/v1/ai/selection",
+        json!({
+            "text": "The algorithm improves neural network performance because the dataset is noisy.",
+            "paragraph": "The algorithm improves neural network performance because the dataset is noisy.",
+            "document_title": "Machine Learning Notes",
+            "source_language": "en",
+            "target_language": "zh-CN"
+        }),
+        Some(&token),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["provider"], "local-deterministic");
+    assert!(
+        body["data"]["original_text"]
+            .as_str()
+            .unwrap()
+            .contains("algorithm")
+    );
+    assert_eq!(body["data"]["prompt"]["name"], "selection_translate");
+    assert!(
+        body["data"]["translation"]
+            .as_str()
+            .unwrap()
+            .contains("算法")
+    );
+    assert!(body["data"]["terms"].as_array().unwrap().len() >= 2);
+    assert!(
+        body["data"]["sentence_analysis"]["clauses"]
+            .as_array()
+            .unwrap()
+            .len()
+            >= 2
+    );
+}
+
+#[tokio::test]
+async fn ai_document_analysis_returns_frequent_words_and_terminology() {
+    let app = test_app(1024).await;
+    let token = register_and_login(&app, "ai-document").await;
+
+    let (status, body) = json_request(
+        &app,
+        "POST",
+        "/api/v1/ai/document",
+        json!({
+            "document_id": "doc-1",
+            "title": "Neural Network Reading",
+            "paragraphs": [
+                "The neural network algorithm improves model performance.",
+                "The dataset improves model evaluation and the algorithm reduces noisy features.",
+                "Performance depends on dataset quality and evaluation design."
+            ],
+            "target_language": "zh-CN"
+        }),
+        Some(&token),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["provider"], "local-deterministic");
+    assert_eq!(body["data"]["prompt"]["name"], "document_summary");
+    assert!(
+        body["data"]["summary"]
+            .as_str()
+            .unwrap()
+            .contains("Neural Network Reading")
+    );
+    assert!(body["data"]["frequent_words"].as_array().unwrap().len() >= 3);
+    assert!(body["data"]["terminology"].as_array().unwrap().len() >= 2);
+    assert!(body["data"]["suggestions"].as_array().unwrap().len() >= 2);
+}
+
+#[tokio::test]
+async fn ai_selection_analysis_rejects_empty_text() {
+    let app = test_app(1024).await;
+    let token = register_and_login(&app, "ai-empty").await;
+
+    let (status, body) = json_request(
+        &app,
+        "POST",
+        "/api/v1/ai/selection",
+        json!({
+            "text": "   ",
+            "paragraph": "Context",
+            "target_language": "zh-CN"
+        }),
+        Some(&token),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["success"], false);
+    assert_eq!(body["error"]["code"], "VALIDATION_ERROR");
+}
+
+#[tokio::test]
+async fn ai_analysis_requires_authentication() {
+    let app = test_app(1024).await;
+
+    let (status, body) = json_request(
+        &app,
+        "POST",
+        "/api/v1/ai/selection",
+        json!({
+            "text": "The algorithm improves performance.",
+            "target_language": "zh-CN"
+        }),
+        None,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["success"], false);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]

@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod annotations;
 pub mod auth;
 pub mod config;
@@ -30,7 +31,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::state::AppState;
 
 #[derive(OpenApi)]
-#[openapi(paths(health, auth::register, auth::login, documents::import, documents::list, documents::detail, documents::update, documents::delete, reading::get, reading::update, tags::create, tags::list, tags::update, tags::delete, tags::set_document_tags, tags::get_document_tags, annotations::create_note, annotations::list_notes, annotations::update_note, annotations::delete_note, annotations::create_highlight, annotations::list_highlights, annotations::update_highlight, annotations::delete_highlight, statistics::overview), components(schemas(HealthResponse, auth::RegisterRequest, auth::LoginRequest, auth::UserResponse, auth::LoginResponse, documents::DocumentSummary, documents::Paragraph, documents::DocumentDetail, documents::DocumentList, documents::ImportDocumentForm, documents::UpdateDocumentRequest, reading::UpdateProgressRequest, reading::ReadingProgress, tags::Tag, tags::TagRequest, tags::SetDocumentTagsRequest, annotations::Note, annotations::CreateNoteRequest, annotations::UpdateNoteRequest, annotations::Highlight, annotations::CreateHighlightRequest, annotations::UpdateHighlightRequest, statistics::LearningOverview, response::ErrorBody, response::ErrorDetail)), modifiers(&SecurityAddon), tags((name = "IntelliRead", description = "IntelliRead backend API")))]
+#[openapi(paths(health, auth::register, auth::login, documents::import, documents::list, documents::detail, documents::update, documents::delete, reading::get, reading::update, tags::create, tags::list, tags::update, tags::delete, tags::set_document_tags, tags::get_document_tags, annotations::create_note, annotations::list_notes, annotations::update_note, annotations::delete_note, annotations::create_highlight, annotations::list_highlights, annotations::update_highlight, annotations::delete_highlight, statistics::overview, ai::analyze_selection, ai::analyze_document), components(schemas(HealthResponse, auth::RegisterRequest, auth::LoginRequest, auth::UserResponse, auth::LoginResponse, documents::DocumentSummary, documents::Paragraph, documents::DocumentDetail, documents::DocumentList, documents::ImportDocumentForm, documents::UpdateDocumentRequest, reading::UpdateProgressRequest, reading::ReadingProgress, tags::Tag, tags::TagRequest, tags::SetDocumentTagsRequest, annotations::Note, annotations::CreateNoteRequest, annotations::UpdateNoteRequest, annotations::Highlight, annotations::CreateHighlightRequest, annotations::UpdateHighlightRequest, statistics::LearningOverview, ai::SelectionAnalysisRequest, ai::DocumentAnalysisRequest, ai::PromptInfo, ai::TermInfo, ai::ClauseAnalysis, ai::SentenceAnalysis, ai::SelectionAnalysisResponse, ai::FrequentWord, ai::DocumentAnalysisResponse, response::ErrorBody, response::ErrorDetail)), modifiers(&SecurityAddon), tags((name = "IntelliRead", description = "IntelliRead backend API")))]
 struct ApiDoc;
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
@@ -116,6 +117,8 @@ pub fn app(state: Arc<AppState>) -> Router {
             "/highlights/{id}",
             put(annotations::update_highlight).delete(annotations::delete_highlight),
         )
+        .route("/ai/selection", post(ai::analyze_selection))
+        .route("/ai/document", post(ai::analyze_document))
         .route("/statistics/overview", get(statistics::overview));
     Router::new()
         .nest("/api/v1", api)
