@@ -317,7 +317,7 @@ fn split_clauses(text: &str) -> Vec<String> {
         .replace(" that ", ", that ");
 
     normalized
-        .split(|character| matches!(character, ',' | ';' | ':'))
+        .split([',', ';', ':'])
         .map(str::trim)
         .filter(|part| !part.is_empty())
         .map(ToOwned::to_owned)
