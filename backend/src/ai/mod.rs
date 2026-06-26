@@ -114,9 +114,15 @@ pub async fn analyze_selection(
         "selection_translate",
         &[
             ("text", text),
-            ("document_title", request.document_title.as_deref().unwrap_or("Untitled")),
+            (
+                "document_title",
+                request.document_title.as_deref().unwrap_or("Untitled"),
+            ),
             ("target_language", target_language),
-            ("source_language", request.source_language.as_deref().unwrap_or("auto")),
+            (
+                "source_language",
+                request.source_language.as_deref().unwrap_or("auto"),
+            ),
         ],
     );
 
@@ -152,7 +158,9 @@ pub async fn analyze_document(
     let document_id = request.document_id.clone();
     let title = request.title.trim();
     if title.is_empty() {
-        return Err(AppError::Validation("document title cannot be empty".into()));
+        return Err(AppError::Validation(
+            "document title cannot be empty".into(),
+        ));
     }
 
     let paragraphs: Vec<String> = request
@@ -164,7 +172,9 @@ pub async fn analyze_document(
         .collect();
 
     if paragraphs.is_empty() {
-        return Err(AppError::Validation("document paragraphs cannot be empty".into()));
+        return Err(AppError::Validation(
+            "document paragraphs cannot be empty".into(),
+        ));
     }
 
     let joined = paragraphs.join("\n");
@@ -178,7 +188,10 @@ pub async fn analyze_document(
         &[
             ("title", title),
             ("target_language", target_language),
-            ("analysis_focus", "summary, frequent words, terminology, reading advice"),
+            (
+                "analysis_focus",
+                "summary, frequent words, terminology, reading advice",
+            ),
         ],
     );
 
@@ -364,7 +377,11 @@ fn detect_terms(text: &str) -> Vec<TermInfo> {
         }
     }
 
-    terms.sort_by(|a, b| b.frequency.cmp(&a.frequency).then_with(|| a.term.cmp(&b.term)));
+    terms.sort_by(|a, b| {
+        b.frequency
+            .cmp(&a.frequency)
+            .then_with(|| a.term.cmp(&b.term))
+    });
     terms
 }
 

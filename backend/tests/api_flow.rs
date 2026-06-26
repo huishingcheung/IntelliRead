@@ -577,14 +577,27 @@ async fn ai_selection_analysis_returns_translation_terms_and_prompt_metadata() {
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["success"], true);
-    assert!(body["data"]["original_text"]
-        .as_str()
-        .unwrap()
-        .contains("algorithm"));
+    assert!(
+        body["data"]["original_text"]
+            .as_str()
+            .unwrap()
+            .contains("algorithm")
+    );
     assert_eq!(body["data"]["prompt"]["name"], "selection_translate");
-    assert!(body["data"]["translation"].as_str().unwrap().contains("算法"));
+    assert!(
+        body["data"]["translation"]
+            .as_str()
+            .unwrap()
+            .contains("算法")
+    );
     assert!(body["data"]["terms"].as_array().unwrap().len() >= 2);
-    assert!(body["data"]["sentence_analysis"]["clauses"].as_array().unwrap().len() >= 2);
+    assert!(
+        body["data"]["sentence_analysis"]["clauses"]
+            .as_array()
+            .unwrap()
+            .len()
+            >= 2
+    );
 }
 
 #[tokio::test]
@@ -613,7 +626,12 @@ async fn ai_document_analysis_returns_frequent_words_and_terminology() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["success"], true);
     assert_eq!(body["data"]["prompt"]["name"], "document_summary");
-    assert!(body["data"]["summary"].as_str().unwrap().contains("Neural Network Reading"));
+    assert!(
+        body["data"]["summary"]
+            .as_str()
+            .unwrap()
+            .contains("Neural Network Reading")
+    );
     assert!(body["data"]["frequent_words"].as_array().unwrap().len() >= 3);
     assert!(body["data"]["terminology"].as_array().unwrap().len() >= 2);
     assert!(body["data"]["suggestions"].as_array().unwrap().len() >= 2);
