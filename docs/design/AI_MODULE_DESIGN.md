@@ -18,7 +18,19 @@ This keeps the first AI contract easy to test and avoids adding database tables 
 
 ## Provider Design
 
-The first provider is `local-deterministic`. It does not call an external LLM. It produces stable output for tests, local demos, and classroom presentation.
+The default provider is `local-deterministic`. It does not call an external LLM. It produces stable output for tests, local demos, and classroom presentation.
+
+The production provider can be switched to DeepSeek V4 Pro through environment variables:
+
+```text
+AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=<secret>
+AI_API_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-v4-pro
+AI_THINKING=disabled
+```
+
+When DeepSeek is enabled, the backend calls the OpenAI-compatible Chat Completions endpoint and requests strict JSON output. The model-generated content replaces local translation, selection analysis, document summary, and reading suggestions. Deterministic local logic still supplies terminology, frequent words, and sentence structure so the public API shape remains stable.
 
 The API response already includes:
 
@@ -26,11 +38,11 @@ The API response already includes:
 - `prompt.name`: prompt template identifier
 - `prompt.template`: rendered prompt context
 
-Future OpenAI-compatible providers can reuse the same request DTOs and replace the local analysis functions with an HTTP client selected by environment variables such as:
+OpenAI-compatible providers can reuse the same request DTOs and replace the selected provider through environment variables such as:
 
 - `AI_PROVIDER`
 - `AI_API_BASE_URL`
-- `AI_API_KEY`
+- `DEEPSEEK_API_KEY` or `AI_API_KEY`
 - `AI_MODEL`
 
 ## Core Algorithms
@@ -86,7 +98,7 @@ The right-side AI panel renders translation, sentence parsing, terminology, freq
 
 ## Limitations
 
-- The first provider is deterministic and heuristic-based, not a real LLM.
+- The default provider is deterministic and heuristic-based; set `AI_PROVIDER=deepseek` to use DeepSeek V4 Pro.
 - AI results are not persisted.
 - Selection analysis trusts frontend-provided text and context.
 - Cross-paragraph selection is still unsupported by the reader interaction.

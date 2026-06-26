@@ -34,6 +34,13 @@ async fn test_app_with_expiration(
             server_port: 3000,
             max_document_bytes,
             cors_allowed_origins: vec!["http://localhost:5173".into()],
+            ai_provider: "local-deterministic".into(),
+            ai_api_base_url: "https://api.deepseek.com".into(),
+            ai_api_key: None,
+            ai_model: "deepseek-v4-pro".into(),
+            ai_timeout_seconds: 30,
+            ai_max_output_tokens: 1200,
+            ai_thinking: "disabled".into(),
         },
     }))
 }
@@ -577,6 +584,7 @@ async fn ai_selection_analysis_returns_translation_terms_and_prompt_metadata() {
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["provider"], "local-deterministic");
     assert!(
         body["data"]["original_text"]
             .as_str()
@@ -625,6 +633,7 @@ async fn ai_document_analysis_returns_frequent_words_and_terminology() {
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["provider"], "local-deterministic");
     assert_eq!(body["data"]["prompt"]["name"], "document_summary");
     assert!(
         body["data"]["summary"]

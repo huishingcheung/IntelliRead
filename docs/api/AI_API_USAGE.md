@@ -60,7 +60,7 @@ Response:
 }
 ```
 
-Empty `text` returns `400 VALIDATION_ERROR`.
+Empty `text` returns `400 VALIDATION_ERROR`. DeepSeek provider failures return `502 UPSTREAM_ERROR`.
 
 ## Analyze Whole Document
 
@@ -119,7 +119,7 @@ Response:
 }
 ```
 
-Empty `title` or empty `paragraphs` returns `400 VALIDATION_ERROR`.
+Empty `title` or empty `paragraphs` returns `400 VALIDATION_ERROR`. DeepSeek provider failures return `502 UPSTREAM_ERROR`.
 
 ## Prompt Templates
 
@@ -130,15 +130,22 @@ Current prompt names:
 
 The response includes the rendered prompt metadata so future real-model calls can be audited and debugged.
 
-## Local Provider
+## Provider Configuration
 
-`local-deterministic` is the default implementation. It supports demos without an API key and keeps tests stable.
+`local-deterministic` remains the default implementation. It supports demos without an API key and keeps CI stable.
 
-Future real AI configuration should be added through environment variables:
+To call DeepSeek V4 Pro, configure the backend environment:
 
 ```text
-AI_PROVIDER=openai-compatible
-AI_API_BASE_URL=https://api.example.com/v1
-AI_API_KEY=<secret>
-AI_MODEL=<model-name>
+AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=<secret>
+AI_API_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-v4-pro
+AI_TIMEOUT_SECONDS=30
+AI_MAX_OUTPUT_TOKENS=1200
+AI_THINKING=disabled
 ```
+
+`DEEPSEEK_API_KEY` can also be supplied as `AI_API_KEY`. Never commit real API keys or `.env`.
+
+When `AI_PROVIDER=deepseek`, the backend calls the OpenAI-compatible `POST /chat/completions` endpoint and asks the model to return strict JSON. The response `provider` field becomes `deepseek:deepseek-v4-pro`.

@@ -129,6 +129,13 @@ VITE_API_BASE_URL=http://127.0.0.1:3000/api/v1
 | `SERVER_PORT` | 后端监听端口 |
 | `MAX_DOCUMENT_BYTES` | 单个文献上传大小限制 |
 | `CORS_ALLOWED_ORIGINS` | 允许访问后端的前端 Origin，逗号分隔 |
+| `AI_PROVIDER` | AI provider，默认 `local-deterministic`，可设为 `deepseek` |
+| `DEEPSEEK_API_KEY` / `AI_API_KEY` | DeepSeek API Key；仅在 `AI_PROVIDER=deepseek` 时需要，不能提交到仓库 |
+| `AI_API_BASE_URL` | DeepSeek OpenAI-compatible API 地址，默认 `https://api.deepseek.com` |
+| `AI_MODEL` | DeepSeek 模型名，默认 `deepseek-v4-pro` |
+| `AI_TIMEOUT_SECONDS` | DeepSeek 请求超时时间 |
+| `AI_MAX_OUTPUT_TOKENS` | DeepSeek 最大输出 token 数 |
+| `AI_THINKING` | DeepSeek thinking 开关，默认 `disabled` |
 
 ## 质量检查
 
@@ -150,7 +157,7 @@ npm run build
 
 ## 当前协作重点
 
-AI 阅读助手已经具备第一版无状态接口和前端入口，当前输出来自 `local-deterministic` provider，适合课程演示和稳定测试。下一阶段应先确认词汇和复习模块的接口契约；如需接入外部大模型，还需要补充 provider 配置、密钥管理、超时重试和调用审计策略。建议至少明确：
+AI 阅读助手已经具备无状态接口和前端入口，默认输出来自 `local-deterministic` provider，适合课程演示和稳定测试；配置 `AI_PROVIDER=deepseek` 和 `DEEPSEEK_API_KEY` 后可调用 DeepSeek V4 Pro。下一阶段应先确认词汇和复习模块的接口契约；如需继续扩展外部大模型，还需要补充调用审计策略。建议至少明确：
 
 - AI：是否保持无状态文本分析，还是改为后端按认证用户读取文档后分析
 - 词汇：生词卡字段、来源文献/段落、释义、例句、掌握状态

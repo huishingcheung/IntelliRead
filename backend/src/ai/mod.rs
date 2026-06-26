@@ -1,14 +1,25 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
-use axum::{Json, http::StatusCode};
+use axum::{Json, extract::State, http::StatusCode};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     auth::AuthUser,
+    config::Config,
     error::AppError,
     response::{ApiJson, ApiResponse},
+    state::AppState,
 };
+
+const LOCAL_PROVIDER: &str = "local-deterministic";
+const DEEPSEEK_PROVIDER: &str = "deepseek";
+const DEEPSEEK_SYSTEM_PROMPT: &str = "You are IntelliRead's academic reading assistant. Return valid json only. Do not include markdown fences.";
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SelectionAnalysisRequest {
@@ -64,7 +75,7 @@ pub struct SelectionAnalysisResponse {
     pub terms: Vec<TermInfo>,
     pub sentence_analysis: SentenceAnalysis,
     pub prompt: PromptInfo,
-    pub provider: &'static str,
+    pub provider: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -82,7 +93,64 @@ pub struct DocumentAnalysisResponse {
     pub terminology: Vec<TermInfo>,
     pub suggestions: Vec<String>,
     pub prompt: PromptInfo,
-    pub provider: &'static str,
+    pub provider: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DeepSeekChatRequest {
+    model: String,
+    messages: Vec<DeepSeekMessage>,
+    max_tokens: u32,
+    response_format: DeepSeekResponseFormat,
+    thinking: DeepSeekThinking,
+    stream: bool,
+    user_id: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DeepSeekMessage {
+    role: &'static str,
+    content: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DeepSeekResponseFormat {
+    #[serde(rename = "type")]
+    kind: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct DeepSeekThinking {
+    #[serde(rename = "type")]
+    kind: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeepSeekChatResponse {
+    choices: Vec<DeepSeekChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeepSeekChoice {
+    message: DeepSeekResponseMessage,
+    finish_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeepSeekResponseMessage {
+    content: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeepSeekSelectionOutput {
+    translation: String,
+    analysis: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeepSeekDocumentOutput {
+    summary: String,
+    suggestions: Vec<String>,
 }
 
 #[utoipa::path(
@@ -93,11 +161,13 @@ pub struct DocumentAnalysisResponse {
     responses(
         (status = 200, body = ApiResponse<SelectionAnalysisResponse>),
         (status = 400, body = crate::response::ErrorBody),
-        (status = 401, body = crate::response::ErrorBody)
+        (status = 401, body = crate::response::ErrorBody),
+        (status = 502, body = crate::response::ErrorBody)
     )
 )]
 pub async fn analyze_selection(
-    _user: AuthUser,
+    State(state): State<Arc<AppState>>,
+    user: AuthUser,
     ApiJson(request): ApiJson<SelectionAnalysisRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<SelectionAnalysisResponse>>), AppError> {
     let text = request.text.trim();
@@ -126,18 +196,31 @@ pub async fn analyze_selection(
         ],
     );
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::new(SelectionAnalysisResponse {
-            original_text: text.to_string(),
-            translation,
-            analysis,
-            terms,
-            sentence_analysis,
-            prompt,
-            provider: "local-deterministic",
-        })),
-    ))
+    let mut response = SelectionAnalysisResponse {
+        original_text: text.to_string(),
+        translation,
+        analysis,
+        terms,
+        sentence_analysis,
+        prompt,
+        provider: LOCAL_PROVIDER.to_string(),
+    };
+
+    if should_use_deepseek(&state.config) {
+        let output = deepseek_selection_analysis(
+            &state.config,
+            &user.id,
+            &response.prompt,
+            text,
+            target_language,
+        )
+        .await?;
+        response.translation = output.translation;
+        response.analysis = output.analysis;
+        response.provider = provider_label(&state.config);
+    }
+
+    Ok((StatusCode::OK, Json(ApiResponse::new(response))))
 }
 
 #[utoipa::path(
@@ -148,11 +231,13 @@ pub async fn analyze_selection(
     responses(
         (status = 200, body = ApiResponse<DocumentAnalysisResponse>),
         (status = 400, body = crate::response::ErrorBody),
-        (status = 401, body = crate::response::ErrorBody)
+        (status = 401, body = crate::response::ErrorBody),
+        (status = 502, body = crate::response::ErrorBody)
     )
 )]
 pub async fn analyze_document(
-    _user: AuthUser,
+    State(state): State<Arc<AppState>>,
+    user: AuthUser,
     ApiJson(request): ApiJson<DocumentAnalysisRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<DocumentAnalysisResponse>>), AppError> {
     let document_id = request.document_id.clone();
@@ -195,19 +280,35 @@ pub async fn analyze_document(
         ],
     );
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::new(DocumentAnalysisResponse {
-            document_id,
-            title: title.to_string(),
-            summary,
-            frequent_words,
-            terminology,
-            suggestions,
-            prompt,
-            provider: "local-deterministic",
-        })),
-    ))
+    let mut response = DocumentAnalysisResponse {
+        document_id,
+        title: title.to_string(),
+        summary,
+        frequent_words,
+        terminology,
+        suggestions,
+        prompt,
+        provider: LOCAL_PROVIDER.to_string(),
+    };
+
+    if should_use_deepseek(&state.config) {
+        let output = deepseek_document_analysis(
+            &state.config,
+            &user.id,
+            &response.prompt,
+            title,
+            &paragraphs,
+            target_language,
+        )
+        .await?;
+        response.summary = output.summary;
+        if !output.suggestions.is_empty() {
+            response.suggestions = output.suggestions;
+        }
+        response.provider = provider_label(&state.config);
+    }
+
+    Ok((StatusCode::OK, Json(ApiResponse::new(response))))
 }
 
 fn prompt_info(name: &'static str, values: &[(&str, &str)]) -> PromptInfo {
@@ -227,6 +328,167 @@ fn prompt_info(name: &'static str, values: &[(&str, &str)]) -> PromptInfo {
     }
 
     PromptInfo { name, template }
+}
+
+fn should_use_deepseek(config: &Config) -> bool {
+    config.ai_provider == DEEPSEEK_PROVIDER
+}
+
+fn provider_label(config: &Config) -> String {
+    format!("deepseek:{}", config.ai_model)
+}
+
+async fn deepseek_selection_analysis(
+    config: &Config,
+    user_id: &str,
+    prompt: &PromptInfo,
+    text: &str,
+    target_language: &str,
+) -> Result<DeepSeekSelectionOutput, AppError> {
+    let input = serde_json::json!({
+        "target_language": target_language,
+        "selected_text": text,
+        "prompt_context": prompt.template.as_str(),
+    });
+    let messages = vec![
+        DeepSeekMessage {
+            role: "system",
+            content: DEEPSEEK_SYSTEM_PROMPT.to_string(),
+        },
+        DeepSeekMessage {
+            role: "user",
+            content: format!(
+                "Analyze the selected academic text. Return exactly this JSON shape: {{\"translation\":\"...\",\"analysis\":\"...\"}}. Keep the output language aligned with target_language.\nInput: {input}"
+            ),
+        },
+    ];
+
+    call_deepseek_json(config, user_id, messages).await
+}
+
+async fn deepseek_document_analysis(
+    config: &Config,
+    user_id: &str,
+    prompt: &PromptInfo,
+    title: &str,
+    paragraphs: &[String],
+    target_language: &str,
+) -> Result<DeepSeekDocumentOutput, AppError> {
+    let input = serde_json::json!({
+        "target_language": target_language,
+        "title": title,
+        "paragraphs": paragraphs,
+        "prompt_context": prompt.template.as_str(),
+    });
+    let messages = vec![
+        DeepSeekMessage {
+            role: "system",
+            content: DEEPSEEK_SYSTEM_PROMPT.to_string(),
+        },
+        DeepSeekMessage {
+            role: "user",
+            content: format!(
+                "Analyze the whole document. Return exactly this JSON shape: {{\"summary\":\"...\",\"suggestions\":[\"...\"]}}. Keep the output language aligned with target_language.\nInput: {input}"
+            ),
+        },
+    ];
+
+    call_deepseek_json(config, user_id, messages).await
+}
+
+async fn call_deepseek_json<T>(
+    config: &Config,
+    user_id: &str,
+    messages: Vec<DeepSeekMessage>,
+) -> Result<T, AppError>
+where
+    T: DeserializeOwned,
+{
+    let api_key = config
+        .ai_api_key
+        .as_deref()
+        .ok_or_else(|| AppError::Config("missing DeepSeek API key".into()))?;
+    let endpoint = format!(
+        "{}/chat/completions",
+        config.ai_api_base_url.trim_end_matches('/')
+    );
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(config.ai_timeout_seconds))
+        .build()
+        .map_err(|error| AppError::Upstream(format!("cannot create DeepSeek client: {error}")))?;
+
+    let request = DeepSeekChatRequest {
+        model: config.ai_model.clone(),
+        messages,
+        max_tokens: config.ai_max_output_tokens,
+        response_format: DeepSeekResponseFormat {
+            kind: "json_object",
+        },
+        thinking: DeepSeekThinking {
+            kind: config.ai_thinking.clone(),
+        },
+        stream: false,
+        user_id: sanitize_deepseek_user_id(user_id),
+    };
+
+    let response = client
+        .post(endpoint)
+        .bearer_auth(api_key)
+        .json(&request)
+        .send()
+        .await
+        .map_err(|error| AppError::Upstream(format!("DeepSeek request failed: {error}")))?;
+    let status = response.status();
+    if !status.is_success() {
+        tracing::warn!(%status, "DeepSeek returned non-success status");
+        return Err(AppError::Upstream(format!("DeepSeek returned {status}")));
+    }
+
+    let body = response
+        .json::<DeepSeekChatResponse>()
+        .await
+        .map_err(|error| AppError::Upstream(format!("invalid DeepSeek response: {error}")))?;
+    let choice = body
+        .choices
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Upstream("DeepSeek returned no choices".into()))?;
+    if choice.finish_reason.as_deref() == Some("length") {
+        return Err(AppError::Upstream(
+            "DeepSeek response exceeded AI_MAX_OUTPUT_TOKENS".into(),
+        ));
+    }
+    let content = choice
+        .message
+        .content
+        .ok_or_else(|| AppError::Upstream("DeepSeek returned empty content".into()))?;
+
+    parse_model_json(&content)
+}
+
+fn parse_model_json<T>(content: &str) -> Result<T, AppError>
+where
+    T: DeserializeOwned,
+{
+    let trimmed = content.trim();
+    let start = trimmed
+        .find('{')
+        .ok_or_else(|| AppError::Upstream("DeepSeek content is not JSON".into()))?;
+    let end = trimmed
+        .rfind('}')
+        .ok_or_else(|| AppError::Upstream("DeepSeek content is not JSON".into()))?;
+    serde_json::from_str(&trimmed[start..=end])
+        .map_err(|error| AppError::Upstream(format!("cannot parse DeepSeek JSON: {error}")))
+}
+
+fn sanitize_deepseek_user_id(user_id: &str) -> String {
+    user_id
+        .chars()
+        .filter(|character| {
+            character.is_ascii_alphanumeric() || *character == '-' || *character == '_'
+        })
+        .take(512)
+        .collect()
 }
 
 fn translate_selection(text: &str, terms: &[TermInfo], target_language: &str) -> String {

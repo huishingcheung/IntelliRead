@@ -18,4 +18,5 @@
 | `413` | `PAYLOAD_TOO_LARGE` | 上传超过配置限制 |
 | `415` | `UNSUPPORTED_MEDIA_TYPE` | 上传扩展名不受支持 |
 | `405` | `METHOD_NOT_ALLOWED` | 路径存在但 HTTP 方法不支持 |
+| `502` | `UPSTREAM_ERROR` | AI provider 请求失败、超时、返回非 2xx 或响应无法解析 |
 | `500` | `INTERNAL_ERROR` | 配置、数据库或未公开内部错误 |
