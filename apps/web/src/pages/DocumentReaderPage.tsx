@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
 import { useAuth } from '../auth/useAuth'
 import type {
+  AiDocumentAnalysis,
+  AiSelectionAnalysis,
   DocumentDetail,
   DocumentProgress,
   Highlight,
@@ -57,21 +59,6 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
-}
-
-function buildDemoTranslation(text: string) {
-  if (!text) return ''
-  const preview = text.length > 36 ? `${text.slice(0, 36)}...` : text
-  return `演示翻译：${preview}。这里先保留前端交互，后续可以直接接入真实翻译接口。`
-}
-
-function buildDemoAnalysis(text: string) {
-  if (!text) return []
-  return [
-    '这段文本可能包含专业术语，建议结合上下文理解。',
-    '长句可以先找主语和谓语，再处理定语和从句层级。',
-    '当前为前端演示分析卡，后续可接入真实 AI 解析接口。',
-  ]
 }
 
 function getCharLength(text: string) {
@@ -172,6 +159,10 @@ export function DocumentReaderPage() {
   const [highlightColor, setHighlightColor] = useState<HighlightColor>('yellow')
   const [isSavingProgress, setIsSavingProgress] = useState(false)
   const [panelMessage, setPanelMessage] = useState('')
+  const [selectionAnalysis, setSelectionAnalysis] = useState<AiSelectionAnalysis | null>(null)
+  const [documentAnalysis, setDocumentAnalysis] = useState<AiDocumentAnalysis | null>(null)
+  const [isAnalyzingSelection, setIsAnalyzingSelection] = useState(false)
+  const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false)
 
   const activeHighlight = useMemo(() => {
     if (!selection) return null
@@ -343,6 +334,7 @@ export function DocumentReaderPage() {
   const clearSelection = () => {
     setSelection(null)
     setSelectionPopover(null)
+    setSelectionAnalysis(null)
     window.getSelection()?.removeAllRanges()
   }
 
@@ -407,6 +399,7 @@ export function DocumentReaderPage() {
       startOffset: offsets.startOffset,
       endOffset: offsets.endOffset,
     })
+    setSelectionAnalysis(null)
     setSelectionPopover({
       x: rect.left - containerRect.left,
       y: rect.top - containerRect.top - 78,
@@ -563,6 +556,56 @@ export function DocumentReaderPage() {
     }
   }
 
+  const handleAnalyzeSelection = async () => {
+    if (!selection || !document) {
+      setPanelMessage('请先在正文里选择需要 AI 解析的文本。')
+      return
+    }
+
+    try {
+      setIsAnalyzingSelection(true)
+      const result = await api<AiSelectionAnalysis>('/ai/selection', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: selection.text,
+          paragraph: selection.paragraph.content,
+          document_title: document.title,
+          source_language: 'en',
+          target_language: 'zh-CN',
+        }),
+      })
+      setSelectionAnalysis(result)
+      setPanelMessage('划词 AI 分析已更新。')
+    } catch (analysisError) {
+      setPanelMessage(analysisError instanceof ApiError ? analysisError.message : 'AI 划词分析失败。')
+    } finally {
+      setIsAnalyzingSelection(false)
+    }
+  }
+
+  const handleAnalyzeDocument = async () => {
+    if (!document) return
+
+    try {
+      setIsAnalyzingDocument(true)
+      const result = await api<AiDocumentAnalysis>('/ai/document', {
+        method: 'POST',
+        body: JSON.stringify({
+          document_id: document.id,
+          title: document.title,
+          paragraphs: document.paragraphs.map((paragraph) => paragraph.content),
+          target_language: 'zh-CN',
+        }),
+      })
+      setDocumentAnalysis(result)
+      setPanelMessage('文献 AI 分析已更新。')
+    } catch (analysisError) {
+      setPanelMessage(analysisError instanceof ApiError ? analysisError.message : 'AI 文献分析失败。')
+    } finally {
+      setIsAnalyzingDocument(false)
+    }
+  }
+
   const displayProgressPercent = document ? effectiveProgressPercent : (progress?.progress_percent ?? 0)
 
   return (
@@ -699,8 +742,106 @@ export function DocumentReaderPage() {
                   </div>
 
                   <div className="mt-6 space-y-4">
-                    <div className="rounded-sm border border-[var(--line-muted)] bg-[rgba(255,255,255,0.44)] p-4"><p className="text-sm text-[var(--ink-soft)]">划词翻译</p><p className="mt-2 text-sm leading-7 text-[var(--ink-main)]">{selection ? buildDemoTranslation(selection.text) : '选中文本后，这里会显示翻译结果。当前为前端演示版。'}</p></div>
-                    <div className="rounded-sm border border-[var(--line-muted)] bg-[rgba(255,255,255,0.44)] p-4"><p className="text-sm text-[var(--ink-soft)]">长难句解析</p><div className="mt-2 space-y-2 text-sm leading-7 text-[var(--ink-main)]">{(selection ? buildDemoAnalysis(selection.text) : ['点击段落并划词后，可在这里展示 AI 解析。当前先保留交互位置。']).map((item) => (<p key={item}>{item}</p>))}</div></div>
+                    <div className="rounded-sm border border-[var(--line-muted)] bg-[rgba(255,255,255,0.44)] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-[var(--ink-soft)]">划词翻译与解析</p>
+                        <button
+                          onClick={handleAnalyzeSelection}
+                          disabled={!selection || isAnalyzingSelection}
+                          className="rounded-full border border-[var(--line-strong)] px-3 py-1 text-xs transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isAnalyzingSelection ? '分析中...' : 'AI 解析'}
+                        </button>
+                      </div>
+                      {selectionAnalysis ? (
+                        <div className="mt-3 space-y-3 text-sm leading-7 text-[var(--ink-main)]">
+                          <p>{selectionAnalysis.translation}</p>
+                          <p>{selectionAnalysis.analysis}</p>
+                          <div>
+                            <p className="text-xs text-[var(--ink-soft)]">专业术语</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {selectionAnalysis.terms.length === 0 ? (
+                                <span className="text-xs text-[var(--ink-soft)]">未识别到明显术语</span>
+                              ) : (
+                                selectionAnalysis.terms.map((term) => (
+                                  <span key={term.term} className="rounded-full bg-[rgba(50,116,109,0.12)] px-3 py-1 text-xs text-[var(--ink-strong)]">
+                                    {term.term} · {term.explanation}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-[var(--ink-soft)]">Prompt：{selectionAnalysis.prompt.name} · Provider：{selectionAnalysis.provider}</p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">选中文本后点击 AI 解析，这里会显示翻译、术语识别和智能分析结果。</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-sm border border-[var(--line-muted)] bg-[rgba(255,255,255,0.44)] p-4">
+                      <p className="text-sm text-[var(--ink-soft)]">长难句解析</p>
+                      <div className="mt-2 space-y-2 text-sm leading-7 text-[var(--ink-main)]">
+                        {selectionAnalysis ? (
+                          <>
+                            <p>难度：{selectionAnalysis.sentence_analysis.difficulty}</p>
+                            {selectionAnalysis.sentence_analysis.clauses.map((clause) => (
+                              <p key={`${clause.role}-${clause.text}`}>
+                                {clause.role === 'main' ? '主句' : '补充'}：{clause.text}。{clause.note}
+                              </p>
+                            ))}
+                            {selectionAnalysis.sentence_analysis.strategy.map((item) => (
+                              <p key={item}>{item}</p>
+                            ))}
+                          </>
+                        ) : (
+                          <p className="text-[var(--ink-soft)]">完成划词 AI 解析后，这里会展示句子结构和阅读策略。</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-sm border border-[var(--line-muted)] bg-[rgba(255,255,255,0.44)] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-[var(--ink-soft)]">整篇智能分析</p>
+                        <button
+                          onClick={handleAnalyzeDocument}
+                          disabled={isAnalyzingDocument}
+                          className="rounded-full border border-[var(--line-strong)] px-3 py-1 text-xs transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isAnalyzingDocument ? '分析中...' : '分析文献'}
+                        </button>
+                      </div>
+                      {documentAnalysis ? (
+                        <div className="mt-3 space-y-3 text-sm leading-7 text-[var(--ink-main)]">
+                          <p>{documentAnalysis.summary}</p>
+                          <div>
+                            <p className="text-xs text-[var(--ink-soft)]">高频词</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {documentAnalysis.frequent_words.map((word) => (
+                                <span key={word.word} className="rounded-full bg-[rgba(16,79,85,0.08)] px-3 py-1 text-xs text-[var(--ink-strong)]">
+                                  {word.word} × {word.count}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs text-[var(--ink-soft)]">专业术语</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {documentAnalysis.terminology.map((term) => (
+                                <span key={term.term} className="rounded-full bg-[rgba(50,116,109,0.12)] px-3 py-1 text-xs text-[var(--ink-strong)]">
+                                  {term.term} · {term.explanation}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {documentAnalysis.suggestions.map((item) => (
+                            <p key={item}>{item}</p>
+                          ))}
+                          <p className="text-xs text-[var(--ink-soft)]">Prompt：{documentAnalysis.prompt.name} · Provider：{documentAnalysis.provider}</p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">点击分析文献后，这里会显示摘要、高频词、专业术语和阅读建议。</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-6 rounded-sm border border-[var(--line-muted)] bg-[rgba(255,255,255,0.44)] p-4"><div className="flex items-center justify-between"><p className="text-sm text-[var(--ink-soft)]">文献标签</p><button onClick={handleSaveTags} className="rounded-full border border-[var(--line-strong)] px-3 py-1 text-xs transition hover:border-[var(--accent)] hover:text-[var(--accent)]">保存标签</button></div><div className="mt-3 flex flex-wrap gap-2">{documentTags.length === 0 ? <span className="text-sm text-[var(--ink-soft)]">当前还没有绑定标签。</span> : documentTags.map((tag) => (<span key={tag.id} className="rounded-full bg-[rgba(50,116,109,0.12)] px-3 py-1 text-sm text-[var(--ink-strong)]">{tag.name}</span>))}</div><div className="mt-4 space-y-2">{allTags.map((tag) => (<label key={tag.id} className="flex items-center gap-2 text-sm text-[var(--ink-main)]"><input type="checkbox" checked={selectedTagIds.includes(tag.id)} onChange={(event) => setSelectedTagIds((current) => event.target.checked ? [...current, tag.id] : current.filter((item) => item !== tag.id))} />{tag.name}</label>))}</div><div className="mt-4 flex gap-2"><input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="新建标签" className="min-w-0 flex-1 rounded-[14px] border border-[var(--line-muted)] bg-white/70 px-3 py-2 text-sm outline-none" /><button onClick={handleCreateTag} className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-sm transition hover:border-[var(--accent)] hover:text-[var(--accent)]">新建</button></div></div>

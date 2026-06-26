@@ -99,3 +99,54 @@ export type LearningOverview = {
   tracked_documents: number
   average_progress_percent: number
 }
+
+export type AiPromptInfo = {
+  name: string
+  template: string
+}
+
+export type AiTermInfo = {
+  term: string
+  category: string
+  explanation: string
+  frequency: number
+}
+
+export type AiClauseAnalysis = {
+  role: string
+  text: string
+  note: string
+}
+
+export type AiSentenceAnalysis = {
+  difficulty: string
+  main_clause: string
+  clauses: AiClauseAnalysis[]
+  strategy: string[]
+}
+
+export type AiSelectionAnalysis = {
+  original_text: string
+  translation: string
+  analysis: string
+  terms: AiTermInfo[]
+  sentence_analysis: AiSentenceAnalysis
+  prompt: AiPromptInfo
+  provider: string
+}
+
+export type AiFrequentWord = {
+  word: string
+  count: number
+}
+
+export type AiDocumentAnalysis = {
+  document_id: string | null
+  title: string
+  summary: string
+  frequent_words: AiFrequentWord[]
+  terminology: AiTermInfo[]
+  suggestions: string[]
+  prompt: AiPromptInfo
+  provider: string
+}
