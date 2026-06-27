@@ -691,6 +691,136 @@ async fn ai_analysis_requires_authentication() {
 }
 
 #[tokio::test]
+async fn vocabulary_review_flow_enforces_ownership_and_scheduling() {
+    let app = test_app(2048).await;
+    let owner = register_and_login(&app, "vocab-owner").await;
+    let other = register_and_login(&app, "vocab-other").await;
+    let (_, uploaded) = upload(
+        &app,
+        &owner,
+        "vocab.txt",
+        "The neural network algorithm improves performance.",
+    )
+    .await;
+    let document_id = uploaded["data"]["id"].as_str().unwrap();
+    let paragraph_id = uploaded["data"]["paragraphs"][0]["id"].as_str().unwrap();
+
+    let (status, card) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({
+            "document_id": document_id,
+            "paragraph_id": paragraph_id,
+            "term": "neural network",
+            "pronunciation": "",
+            "definition": "A model inspired by connected neurons.",
+            "example_sentence": "The neural network algorithm improves performance.",
+            "source_text": "The neural network algorithm improves performance."
+        }),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(card["success"], true);
+    assert_eq!(card["data"]["term"], "neural network");
+    assert_eq!(card["data"]["mastery_status"], "new");
+    let vocabulary_id = card["data"]["id"].as_str().unwrap();
+
+    let (status, _) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({
+            "document_id": document_id,
+            "paragraph_id": paragraph_id,
+            "term": "neural network",
+            "definition": "Duplicate card"
+        }),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    let (status, _) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({"document_id": document_id, "term": "missing definition"}),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, list) = json_request(
+        &app,
+        "GET",
+        "/api/v1/vocabulary?page=1&page_size=10&sort=term&order=asc",
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["data"]["total"], 1);
+    assert_eq!(list["data"]["items"].as_array().unwrap().len(), 1);
+
+    let (status, other_list) = json_request(
+        &app,
+        "GET",
+        "/api/v1/vocabulary",
+        Value::Null,
+        Some(&other),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(other_list["data"]["total"], 0);
+
+    let (status, _) = json_request(
+        &app,
+        "GET",
+        &format!("/api/v1/vocabulary/{vocabulary_id}"),
+        Value::Null,
+        Some(&other),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, queue) = json_request(
+        &app,
+        "GET",
+        "/api/v1/review/queue?limit=5",
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(queue["data"].as_array().unwrap().len(), 1);
+
+    let (status, answer) = json_request(
+        &app,
+        "POST",
+        "/api/v1/review/answer",
+        json!({"vocabulary_id": vocabulary_id, "answer_result": "good"}),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(answer["data"]["answer_result"], "good");
+    assert!(answer["data"]["next_review_at"].is_string());
+
+    let (status, updated) = json_request(
+        &app,
+        "GET",
+        &format!("/api/v1/vocabulary/{vocabulary_id}"),
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated["data"]["mastery_status"], "familiar");
+    assert!(updated["data"]["next_review_at"].is_string());
+}
+#[tokio::test]
 async fn migration_creates_expected_schema_and_valid_foreign_keys() {
     let db = SqlitePoolOptions::new()
         .max_connections(1)
@@ -713,8 +843,10 @@ async fn migration_creates_expected_schema_and_valid_foreign_keys() {
             "highlights",
             "notes",
             "reading_progress",
+            "review_answers",
             "tags",
             "users",
+            "vocabulary_cards",
         ]
     );
     let violations: Vec<(String, i64, String, i64)> = sqlx::query_as("PRAGMA foreign_key_check")
