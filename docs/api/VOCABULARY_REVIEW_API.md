@@ -1,16 +1,22 @@
-# Vocabulary and Review API Contract
+# 词汇与复习 API 契约
 
 ## 状态
 
-草案。本文档用于约定词汇卡片与复习模块的第一版 API 契约。后续 migration、后端接口、前端页面和测试都应基于该契约实现。
+草案。本文件用于约定词汇卡片与复习模块的第一版 API 契约。后续 migration、后端接口、前端页面和测试都应基于该契约实现。
 
 ## 目标
 
-词汇/复习模块用于将 AI 阅读助手提取出的核心生词、短语和专业术语保存为用户自己的生词卡。用户可以收藏词汇、查看释义和例句、进行复习答题，并根据答题结果自动计算下一次复习时间。
+词汇/复习模块用于把 AI 阅读助手提取出的核心生词、短语和专业术语保存为用户自己的生词卡。用户可以收藏词汇、查看释义和例句、进行复习答题，并根据答题结果自动计算下一次复习时间。
+
+## 通用约定
+
+- Base URL：`/api/v1`
+- 受保护接口必须携带 `Authorization: Bearer <JWT>`。
+- 成功响应统一使用 `{"success":true,"data":...}`。
+- 错误响应统一使用 `{"success":false,"error":{"code":"...","message":"..."}}`。
+- 所有私有资源必须通过 `user_id` 进行用户隔离。
 
 ## 数据归属与用户隔离
-
-所有私有资源必须通过 `user_id` 进行隔离。
 
 用户只能访问：
 
@@ -18,14 +24,14 @@
 - 属于自己的复习队列
 - 属于自己的答题记录
 
-后端不能返回其他用户的词汇或复习数据。
+后端不能返回、更新或删除其他用户的词汇或复习数据。查询、更新、删除和复习答题都必须带上当前登录用户的 `user_id` 条件。
 
 ## 生词卡字段
 
 | 字段 | 类型 | 是否必填 | 说明 |
 |---|---|---|---|
 | `id` | string | 是 | 生词卡 ID |
-| `user_id` | string | 是 | 所属用户 ID |
+| `user_id` | string | 是 | 所属用户 ID，仅后端存储，不直接由客户端提交 |
 | `document_id` | string | 是 | 来源文献 ID |
 | `paragraph_id` | string | 否 | 来源段落 ID |
 | `term` | string | 是 | 单词、短语或专业术语 |
@@ -34,7 +40,7 @@
 | `example_sentence` | string | 否 | 原文或 AI 生成的例句 |
 | `source_text` | string | 否 | 术语所在的原文上下文 |
 | `mastery_status` | string | 是 | 掌握状态：`new`、`learning`、`familiar`、`mastered` |
-| `next_review_at` | string | 否 | 下次复习时间 |
+| `next_review_at` | string | 否 | 下次复习时间，RFC 3339 字符串 |
 | `created_at` | string | 是 | 创建时间 |
 | `updated_at` | string | 是 | 更新时间 |
 
@@ -43,9 +49,10 @@
 | 字段 | 类型 | 是否必填 | 说明 |
 |---|---|---|---|
 | `id` | string | 是 | 答题记录 ID |
-| `user_id` | string | 是 | 所属用户 ID |
+| `user_id` | string | 是 | 所属用户 ID，仅后端存储，不直接由客户端提交 |
 | `vocabulary_id` | string | 是 | 对应的生词卡 ID |
 | `answer_result` | string | 是 | 答题结果：`wrong`、`hard`、`good`、`easy` |
+| `mastery_status` | string | 是 | 根据答题结果得到的新掌握状态 |
 | `reviewed_at` | string | 是 | 本次复习时间 |
 | `next_review_at` | string | 是 | 根据答题结果计算出的下次复习时间 |
 
@@ -53,7 +60,7 @@
 
 ### 获取生词卡列表
 
-`GET /api/vocabulary`
+`GET /api/v1/vocabulary`
 
 查询参数：
 
@@ -61,7 +68,7 @@
 |---|---|---|---|
 | `page` | number | 否 | 页码，默认 `1` |
 | `page_size` | number | 否 | 每页数量，默认 `20` |
-| `sort` | string | 否 | 排序字段，例如 `created_at` 或 `next_review_at` |
+| `sort` | string | 否 | 排序字段，例如 `created_at`、`next_review_at`、`term` |
 | `order` | string | 否 | 排序方向：`asc` 或 `desc` |
 | `mastery_status` | string | 否 | 按掌握状态筛选 |
 | `document_id` | string | 否 | 按来源文献筛选 |
@@ -70,16 +77,19 @@
 
 ```json
 {
-  "items": [],
-  "page": 1,
-  "page_size": 20,
-  "total": 0
+  "success": true,
+  "data": {
+    "items": [],
+    "page": 1,
+    "page_size": 20,
+    "total": 0
+  }
 }
 ```
 
 ### 创建生词卡
 
-`POST /api/vocabulary`
+`POST /api/v1/vocabulary`
 
 请求示例：
 
@@ -95,15 +105,37 @@
 }
 ```
 
+响应示例：
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "vocab_001",
+    "document_id": "doc_001",
+    "paragraph_id": "para_001",
+    "term": "distributed system",
+    "pronunciation": null,
+    "definition": "由多个网络节点协同工作的系统。",
+    "example_sentence": "A distributed system coordinates multiple nodes.",
+    "source_text": "Original paragraph text here.",
+    "mastery_status": "new",
+    "next_review_at": null,
+    "created_at": "2026-06-27T12:00:00Z",
+    "updated_at": "2026-06-27T12:00:00Z"
+  }
+}
+```
+
 ### 获取单个生词卡
 
-`GET /api/vocabulary/{id}`
+`GET /api/v1/vocabulary/{id}`
 
 后端必须校验该生词卡是否属于当前登录用户。
 
 ### 更新生词卡
 
-`PATCH /api/vocabulary/{id}`
+`PATCH /api/v1/vocabulary/{id}`
 
 请求示例：
 
@@ -115,15 +147,37 @@
 }
 ```
 
+响应示例：
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "vocab_001",
+    "document_id": "doc_001",
+    "paragraph_id": "para_001",
+    "term": "distributed system",
+    "pronunciation": null,
+    "definition": "更新后的释义。",
+    "example_sentence": "Updated example.",
+    "source_text": "Original paragraph text here.",
+    "mastery_status": "learning",
+    "next_review_at": null,
+    "created_at": "2026-06-27T12:00:00Z",
+    "updated_at": "2026-06-27T12:05:00Z"
+  }
+}
+```
+
 ### 删除生词卡
 
-`DELETE /api/vocabulary/{id}`
+`DELETE /api/v1/vocabulary/{id}`
 
-只允许删除当前用户自己的生词卡。
+只允许删除当前用户自己的生词卡。成功时返回 `204 No Content`。
 
 ### 获取复习队列
 
-`GET /api/review/queue`
+`GET /api/v1/review/queue`
 
 查询参数：
 
@@ -134,13 +188,22 @@
 
 返回规则：
 
-- 返回 `next_review_at` 为空，或早于当前时间的词汇。
+- 返回 `next_review_at` 为空，或早于等于当前时间的词汇。
 - 默认不返回 `mastery_status = mastered` 的词汇。
 - 结果必须只包含当前用户的数据。
 
+响应示例：
+
+```json
+{
+  "success": true,
+  "data": []
+}
+```
+
 ### 提交复习答题结果
 
-`POST /api/review/answer`
+`POST /api/v1/review/answer`
 
 请求示例：
 
@@ -155,15 +218,19 @@
 
 ```json
 {
-  "vocabulary_id": "vocab_001",
-  "answer_result": "good",
-  "mastery_status": "familiar",
-  "next_review_at": "2026-06-27T12:00:00Z"
+  "success": true,
+  "data": {
+    "id": "answer_001",
+    "vocabulary_id": "vocab_001",
+    "answer_result": "good",
+    "mastery_status": "familiar",
+    "reviewed_at": "2026-06-27T12:00:00Z",
+    "next_review_at": "2026-06-30T12:00:00Z"
+  }
 }
 ```
 
 ## 第一版复习时间规则
-
 
 | 答题结果 | 下次复习间隔 | 建议掌握状态 |
 |---|---|---|
@@ -173,10 +240,6 @@
 | `easy` | 7 天后 | `mastered` |
 
 ## 第一版复习调度算法
-
-第一版复习模块采用简化的间隔复习算法。系统根据用户每次复习时提交的 `answer_result` 更新生词卡的 `mastery_status` 和 `next_review_at`。
-
-### 复习队列生成算法
 
 复习队列只返回当前用户自己的生词卡，筛选规则如下：
 
@@ -197,19 +260,9 @@ review_queue = vocabulary_cards
   and document_id matches query if provided
   order by next_review_at asc
   limit query.limit or 20
-  
-  ### 答题结果处理算法
+```
 
 用户提交复习结果后，系统根据 `answer_result` 更新复习状态。
-
-| 答题结果 | 含义 | 下次复习时间 | 掌握状态 |
-|---|---|---|---|
-| `wrong` | 完全不认识或答错 | 当前时间 + 10 分钟 | `learning` |
-| `hard` | 勉强记得 | 当前时间 + 1 天 | `learning` |
-| `good` | 基本掌握 | 当前时间 + 3 天 | `familiar` |
-| `easy` | 熟练掌握 | 当前时间 + 7 天 | `mastered` |
-
-伪代码：
 
 ```text
 if answer_result == "wrong":
@@ -229,7 +282,7 @@ if answer_result == "easy":
     mastery_status = "mastered"
 ```
 
-### 重复生词处理算法
+## 重复生词处理算法
 
 为避免用户重复添加同一个生词，第一版按以下规则判断重复：
 
@@ -251,29 +304,9 @@ if exists:
     return 409 Conflict
 ```
 
-### 用户隔离算法
-
-所有查询、更新、删除和复习操作都必须带上当前登录用户的 `user_id` 条件。
-
-例如获取单个生词卡时，不能只按 `id` 查询：
-
-```text
-where id = vocabulary_id
-```
-
-必须按 `id + user_id` 查询：
-
-```text
-where id = vocabulary_id
-and user_id = current_user_id
-```
-
-这样可以避免用户访问或修改其他人的生词卡。
 ## 错误处理
 
 接口应沿用项目已有错误响应格式，并参考 `docs/api/ERROR_CODES.md` 中定义的错误码。
-
-常见错误场景：
 
 | 场景 | HTTP 状态码 |
 |---|---|
@@ -292,7 +325,7 @@ and user_id = current_user_id
 
 - 展示 AI 提取出的核心词汇和专业术语。
 - 每个术语提供“加入生词卡”操作。
-- 避免同一用户在同一文献下重复添加相同术语。
+- 避免同一用户在同一文献下重复加入相同术语。
 - 已加入的术语需要显示状态。
 - 加入后可以跳转或引导进入词汇复习页面。
 
@@ -305,5 +338,5 @@ and user_id = current_user_id
 - 生词列表只返回当前用户的数据。
 - 不能访问其他用户的生词卡。
 - 能正确生成待复习队列。
-- 提交答题结果后能更新 `next_review_at`。
+- 提交答题结果后能更新 `mastery_status` 和 `next_review_at`。
 - 分页和排序逻辑正确。
