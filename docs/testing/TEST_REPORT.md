@@ -28,4 +28,4 @@
 
 ## 浏览器端到端验收
 
-2026-06-27 已新增 Playwright Chromium 验收流程，覆盖注册、TXT 文献导入、确定性 AI 文献分析、术语加入生词本和复习反馈。该流程只在 GitHub Actions 执行；当前分支尚未产生 CI 结果，因此本节不标记为 Passed。
+2026-06-27 已新增 Playwright Chromium 验收流程，覆盖注册、TXT 文献导入、确定性 AI 文献分析、术语加入生词本和复习反馈。[GitHub Actions run #24](https://github.com/huishingcheung/IntelliRead/actions/runs/28288081092) 已验证 Backend、Frontend 和 End-to-end 三个 job 全部通过，其中浏览器学习闭环 1 个用例通过。
