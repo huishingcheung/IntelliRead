@@ -150,3 +150,54 @@ export type AiDocumentAnalysis = {
   prompt: AiPromptInfo
   provider: string
 }
+
+export type MasteryStatus = 'new' | 'learning' | 'familiar' | 'mastered'
+
+export type ReviewResult = 'wrong' | 'hard' | 'good' | 'easy'
+
+export type VocabularyCard = {
+  id: string
+  document_id: string
+  paragraph_id: string | null
+  term: string
+  pronunciation: string | null
+  definition: string
+  example_sentence: string | null
+  source_text: string | null
+  mastery_status: MasteryStatus
+  next_review_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type VocabularyListResponse = {
+  items: VocabularyCard[]
+  page: number
+  page_size: number
+  total: number
+}
+
+export type CreateVocabularyInput = {
+  document_id: string
+  paragraph_id?: string | null
+  term: string
+  pronunciation?: string | null
+  definition: string
+  example_sentence?: string | null
+  source_text?: string | null
+}
+
+export type UpdateVocabularyInput = {
+  definition?: string
+  example_sentence?: string
+  mastery_status?: MasteryStatus
+}
+
+export type ReviewAnswer = {
+  id: string
+  vocabulary_id: string
+  answer_result: ReviewResult
+  mastery_status: MasteryStatus
+  reviewed_at: string
+  next_review_at: string
+}

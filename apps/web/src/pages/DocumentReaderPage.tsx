@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
+import { createVocabulary, listVocabulary } from '../api/vocabulary'
 import { useAuth } from '../auth/useAuth'
 import type {
   AiDocumentAnalysis,
@@ -67,6 +68,10 @@ function getCharLength(text: string) {
 
 function sliceChars(text: string, start: number, end?: number) {
   return Array.from(text).slice(start, end).join('')
+}
+
+function vocabularyKey(term: string) {
+  return term.trim().toLocaleLowerCase('en-US')
 }
 
 function applyHighlights(content: string, paragraphId: string, highlights: Highlight[]) {
@@ -163,6 +168,8 @@ export function DocumentReaderPage() {
   const [documentAnalysis, setDocumentAnalysis] = useState<AiDocumentAnalysis | null>(null)
   const [isAnalyzingSelection, setIsAnalyzingSelection] = useState(false)
   const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false)
+  const [vocabularyTermKeys, setVocabularyTermKeys] = useState<Set<string>>(() => new Set())
+  const [addingVocabularyKey, setAddingVocabularyKey] = useState<string | null>(null)
 
   const activeHighlight = useMemo(() => {
     if (!selection) return null
@@ -181,7 +188,7 @@ export function DocumentReaderPage() {
     setError('')
 
     try {
-      const [documentData, progressData, tagData, attachedTags, notesData, highlightsData] =
+      const [documentData, progressData, tagData, attachedTags, notesData, highlightsData, vocabularyData] =
         await Promise.all([
           api<DocumentDetail>(`/documents/${id}`),
           api<DocumentProgress | null>(`/documents/${id}/progress`),
@@ -189,6 +196,7 @@ export function DocumentReaderPage() {
           api<Tag[]>(`/documents/${id}/tags`),
           api<Note[]>(`/documents/${id}/notes`),
           api<Highlight[]>(`/documents/${id}/highlights`),
+          listVocabulary({ documentId: id, pageSize: 100, sort: 'term', order: 'asc' }),
         ])
 
       setDocument(documentData)
@@ -198,6 +206,9 @@ export function DocumentReaderPage() {
       setSelectedTagIds(attachedTags.map((item) => item.id))
       setNotes(notesData)
       setHighlights(highlightsData)
+      setVocabularyTermKeys(
+        new Set(vocabularyData.items.map((card) => vocabularyKey(card.term))),
+      )
 
       const nextIndex = progressData?.paragraph_position ?? 0
       setActiveParagraphIndex(Math.max(0, Math.min(nextIndex, documentData.paragraphs.length - 1)))
@@ -606,6 +617,42 @@ export function DocumentReaderPage() {
     }
   }
 
+  const handleAddVocabularyTerm = async (
+    term: AiSelectionAnalysis['terms'][number],
+    sourceParagraph?: Paragraph,
+  ) => {
+    if (!document) return
+
+    const key = vocabularyKey(term.term)
+    if (!key || vocabularyTermKeys.has(key)) return
+
+    setAddingVocabularyKey(key)
+
+    try {
+      await createVocabulary({
+        document_id: document.id,
+        paragraph_id: sourceParagraph?.id ?? null,
+        term: term.term.trim(),
+        definition: term.explanation.trim() || term.category.trim() || term.term.trim(),
+        example_sentence: sourceParagraph?.content ?? null,
+        source_text: sourceParagraph?.content ?? null,
+      })
+      setVocabularyTermKeys((current) => new Set(current).add(key))
+      setPanelMessage(`已加入生词本：${term.term}`)
+    } catch (vocabularyError) {
+      if (vocabularyError instanceof ApiError && vocabularyError.status === 409) {
+        setVocabularyTermKeys((current) => new Set(current).add(key))
+        setPanelMessage(`生词本中已有：${term.term}`)
+      } else {
+        setPanelMessage(
+          vocabularyError instanceof ApiError ? vocabularyError.message : '加入生词本失败。',
+        )
+      }
+    } finally {
+      setAddingVocabularyKey(null)
+    }
+  }
+
   const displayProgressPercent = document ? effectiveProgressPercent : (progress?.progress_percent ?? 0)
 
   return (
@@ -615,6 +662,8 @@ export function DocumentReaderPage() {
           <div className="flex flex-wrap items-center gap-8">
             <Link className="transition hover:text-[var(--accent)]" to="/">首页</Link>
             <Link className="transition hover:text-[var(--accent)]" to="/documents">返回文献库</Link>
+            <Link className="transition hover:text-[var(--accent)]" to="/vocabulary">生词本</Link>
+            <Link className="transition hover:text-[var(--accent)]" to="/review">复习</Link>
             {document ? <div className="text-sm text-[var(--ink-soft)]">当前文献：{document.title}</div> : null}
           </div>
           <div className="flex items-center gap-3 rounded-full border border-[var(--line-muted)] bg-white/60 px-4 py-2">
@@ -759,15 +808,24 @@ export function DocumentReaderPage() {
                           <p>{selectionAnalysis.analysis}</p>
                           <div>
                             <p className="text-xs text-[var(--ink-soft)]">专业术语</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="mt-2 space-y-2">
                               {selectionAnalysis.terms.length === 0 ? (
                                 <span className="text-xs text-[var(--ink-soft)]">未识别到明显术语</span>
                               ) : (
-                                selectionAnalysis.terms.map((term) => (
-                                  <span key={term.term} className="rounded-full bg-[rgba(50,116,109,0.12)] px-3 py-1 text-xs text-[var(--ink-strong)]">
-                                    {term.term} · {term.explanation}
-                                  </span>
-                                ))
+                                selectionAnalysis.terms.map((term) => {
+                                  const key = vocabularyKey(term.term)
+                                  const isAdded = vocabularyTermKeys.has(key)
+                                  const isAdding = addingVocabularyKey === key
+
+                                  return (
+                                    <div key={term.term} className="flex items-start justify-between gap-3 border-b border-[var(--line-muted)] pb-2 last:border-b-0 last:pb-0">
+                                      <span className="min-w-0 text-xs leading-5 text-[var(--ink-strong)]">{term.term} · {term.explanation}</span>
+                                      <button disabled={isAdded || isAdding} onClick={() => void handleAddVocabularyTerm(term, selection?.paragraph)} className="shrink-0 border border-[var(--line-strong)] px-2.5 py-1 text-xs transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-default disabled:opacity-55">
+                                        {isAdded ? '已加入' : isAdding ? '添加中' : '加入生词'}
+                                      </button>
+                                    </div>
+                                  )
+                                })
                               )}
                             </div>
                           </div>
@@ -825,12 +883,21 @@ export function DocumentReaderPage() {
                           </div>
                           <div>
                             <p className="text-xs text-[var(--ink-soft)]">专业术语</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {documentAnalysis.terminology.map((term) => (
-                                <span key={term.term} className="rounded-full bg-[rgba(50,116,109,0.12)] px-3 py-1 text-xs text-[var(--ink-strong)]">
-                                  {term.term} · {term.explanation}
-                                </span>
-                              ))}
+                            <div className="mt-2 space-y-2">
+                              {documentAnalysis.terminology.map((term) => {
+                                const key = vocabularyKey(term.term)
+                                const isAdded = vocabularyTermKeys.has(key)
+                                const isAdding = addingVocabularyKey === key
+
+                                return (
+                                  <div key={term.term} className="flex items-start justify-between gap-3 border-b border-[var(--line-muted)] pb-2 last:border-b-0 last:pb-0">
+                                    <span className="min-w-0 text-xs leading-5 text-[var(--ink-strong)]">{term.term} · {term.explanation}</span>
+                                    <button disabled={isAdded || isAdding} onClick={() => void handleAddVocabularyTerm(term)} className="shrink-0 border border-[var(--line-strong)] px-2.5 py-1 text-xs transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-default disabled:opacity-55">
+                                      {isAdded ? '已加入' : isAdding ? '添加中' : '加入生词'}
+                                    </button>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                           {documentAnalysis.suggestions.map((item) => (
