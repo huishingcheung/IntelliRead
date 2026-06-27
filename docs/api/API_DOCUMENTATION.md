@@ -34,6 +34,13 @@ Base URL：`/api/v1`。受保护接口使用 `Authorization: Bearer <JWT>`。
 | `GET` | `/statistics/overview` | 是 | 无 | 文档、段落、标签、标注和平均进度概览 |
 | `POST` | `/ai/selection` | 是 | JSON：`text,paragraph?,document_title?,source_language?,target_language?` | 分析划词文本，返回辅助翻译、术语、句子结构和 prompt 元数据 |
 | `POST` | `/ai/document` | 是 | JSON：`document_id?,title,paragraphs,target_language?` | 对前端传入的文档段落做无状态分析，返回摘要、高频词、术语和阅读建议 |
+| `GET` | `/vocabulary?page=&page_size=&sort=&order=&mastery_status=&document_id=` | 是 | Query | 当前用户生词卡列表，支持分页、过滤和排序 |
+| `POST` | `/vocabulary` | 是 | JSON：`document_id,paragraph_id?,term,pronunciation?,definition,example_sentence?,source_text?` | 创建生词卡；重复词汇返回 `409` |
+| `GET` | `/vocabulary/{id}` | 是 | Path | 读取当前用户自己的生词卡 |
+| `PATCH` | `/vocabulary/{id}` | 是 | JSON：`definition?,example_sentence?,mastery_status?` | 更新生词卡 |
+| `DELETE` | `/vocabulary/{id}` | 是 | Path | 删除生词卡 |
+| `GET` | `/review/queue?limit=&document_id=` | 是 | Query | 获取当前用户待复习词汇队列 |
+| `POST` | `/review/answer` | 是 | JSON：`vocabulary_id,answer_result` | 提交复习答题结果，返回 `mastery_status` 和 `next_review_at` |
 
 运行服务后，OpenAPI JSON 位于 `/api-docs/openapi.json`，Swagger UI 位于 `/swagger-ui`。AI 接口示例见 [AI_API_USAGE.md](AI_API_USAGE.md)。
 
@@ -47,3 +54,18 @@ Base URL：`/api/v1`。受保护接口使用 `Authorization: Bearer <JWT>`。
 高亮偏移量按 Unicode 字符计数，允许颜色为 `yellow`、`green`、`blue`、`pink`、`purple`。UTF-8 BOM 会在导入时移除。
 
 JSON、Query、multipart、未知路由和不支持的方法均使用统一 JSON 错误结构。
+## 词汇/复习响应示例
+
+所有接口仍沿用统一响应结构。
+
+`GET /api/v1/vocabulary` 返回：
+
+```json
+{"success":true,"data":{"items":[],"page":1,"page_size":20,"total":0}}
+```
+
+`POST /api/v1/review/answer` 返回：
+
+```json
+{"success":true,"data":{"id":"answer-id","vocabulary_id":"vocab-id","answer_result":"good","mastery_status":"familiar","reviewed_at":"2026-06-27T12:00:00Z","next_review_at":"2026-06-30T12:00:00Z"}}
+```

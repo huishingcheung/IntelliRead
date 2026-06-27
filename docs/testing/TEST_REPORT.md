@@ -16,9 +16,12 @@
 |---|---|
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --all-targets --all-features -- -D warnings` | Passed，零警告 |
-| `cargo test --all-features` | Passed：1 个单元测试、9 个 API 集成测试、0 失败、0 ignored |
+| `cargo test --all-features` | Passed：1 个单元测试、14 个 API 集成测试、0 失败、0 ignored |
 | `cargo build --all-features` | Passed |
 
-最终验收回归后为 1 个单元测试、9 个 API 集成测试、0 失败、0 ignored。新增覆盖阅读进度回读、过期 JWT、统一 JSON 错误、空文件、非 UTF-8、migration schema 与外键检查。
+最终验收回归后为 1 个单元测试、14 个 API 集成测试、0 失败、0 ignored。新增覆盖阅读进度回读、过期 JWT、统一 JSON 错误、空文件、非 UTF-8、migration schema 与外键检查。
 
 首次 Clippy 构建发现 Swagger UI 构建脚本依赖 GitHub 下载，已启用 `vendored` feature 后重新执行并通过。
+## 词汇/复习验证
+
+2026-06-27 已补充词汇/复习后端集成测试，并通过 `cargo test --all-features`。覆盖范围包括创建生词卡、重复检测、必填字段校验、未登录请求、用户隔离、跨用户答题、非法枚举、PATCH、DELETE、真实分页、多数据排序、复习队列和复习答题调度。

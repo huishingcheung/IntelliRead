@@ -33,5 +33,14 @@
 | T21 | 统一错误 | 畸形 JSON、非法 Query、未知路由和错误方法返回 JSON | 同上 |
 | T22 | migration schema | 空库创建预期表，外键检查无异常 | 同上 |
 | T23 | 空文件和非 UTF-8 | 返回 `400 VALIDATION_ERROR` | 同上 |
+| V01 | 创建生词卡 | 返回 `200` 和生词卡数据 | `backend/tests/api_flow.rs` |
+| V02 | 重复生词卡 | 同一用户、文献、词汇重复时返回 `409` | 同上 |
+| V03 | 生词卡必填字段校验 | 缺少必填字段返回 `400` | 同上 |
+| V04 | 生词/复习鉴权 | 未登录请求返回 `401` | 同上 |
+| V05 | 用户隔离 | 跨用户读取或答题返回 `404` | 同上 |
+| V06 | 非法枚举 | 非法 `mastery_status` 或 `answer_result` 返回 `400` | 同上 |
+| V07 | PATCH/DELETE 生词卡 | 更新成功；删除后再次读取返回 `404` | 同上 |
+| V08 | 分页排序 | 多条生词按分页和排序参数稳定返回 | 同上 |
+| V09 | 复习队列与答题 | 队列返回待复习词汇；答题后更新 `mastery_status` 和 `next_review_at` | 同上 |
 
 质量门禁为 `cargo fmt --all -- --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo test --all-features`、`cargo build --all-features`。

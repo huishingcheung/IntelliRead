@@ -10,6 +10,7 @@ pub mod response;
 pub mod state;
 pub mod statistics;
 pub mod tags;
+pub mod vocabulary;
 
 use std::sync::Arc;
 
@@ -31,7 +32,88 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::state::AppState;
 
 #[derive(OpenApi)]
-#[openapi(paths(health, auth::register, auth::login, documents::import, documents::list, documents::detail, documents::update, documents::delete, reading::get, reading::update, tags::create, tags::list, tags::update, tags::delete, tags::set_document_tags, tags::get_document_tags, annotations::create_note, annotations::list_notes, annotations::update_note, annotations::delete_note, annotations::create_highlight, annotations::list_highlights, annotations::update_highlight, annotations::delete_highlight, statistics::overview, ai::analyze_selection, ai::analyze_document), components(schemas(HealthResponse, auth::RegisterRequest, auth::LoginRequest, auth::UserResponse, auth::LoginResponse, documents::DocumentSummary, documents::Paragraph, documents::DocumentDetail, documents::DocumentList, documents::ImportDocumentForm, documents::UpdateDocumentRequest, reading::UpdateProgressRequest, reading::ReadingProgress, tags::Tag, tags::TagRequest, tags::SetDocumentTagsRequest, annotations::Note, annotations::CreateNoteRequest, annotations::UpdateNoteRequest, annotations::Highlight, annotations::CreateHighlightRequest, annotations::UpdateHighlightRequest, statistics::LearningOverview, ai::SelectionAnalysisRequest, ai::DocumentAnalysisRequest, ai::PromptInfo, ai::TermInfo, ai::ClauseAnalysis, ai::SentenceAnalysis, ai::SelectionAnalysisResponse, ai::FrequentWord, ai::DocumentAnalysisResponse, response::ErrorBody, response::ErrorDetail)), modifiers(&SecurityAddon), tags((name = "IntelliRead", description = "IntelliRead backend API")))]
+#[openapi(
+    paths(
+        health,
+        auth::register,
+        auth::login,
+        documents::import,
+        documents::list,
+        documents::detail,
+        documents::update,
+        documents::delete,
+        reading::get,
+        reading::update,
+        tags::create,
+        tags::list,
+        tags::update,
+        tags::delete,
+        tags::set_document_tags,
+        tags::get_document_tags,
+        annotations::create_note,
+        annotations::list_notes,
+        annotations::update_note,
+        annotations::delete_note,
+        annotations::create_highlight,
+        annotations::list_highlights,
+        annotations::update_highlight,
+        annotations::delete_highlight,
+        statistics::overview,
+        ai::analyze_selection,
+        ai::analyze_document,
+        vocabulary::list,
+        vocabulary::create,
+        vocabulary::detail,
+        vocabulary::update,
+        vocabulary::delete,
+        vocabulary::review_queue,
+        vocabulary::submit_review_answer
+    ),
+    components(schemas(
+        HealthResponse,
+        auth::RegisterRequest,
+        auth::LoginRequest,
+        auth::UserResponse,
+        auth::LoginResponse,
+        documents::DocumentSummary,
+        documents::Paragraph,
+        documents::DocumentDetail,
+        documents::DocumentList,
+        documents::ImportDocumentForm,
+        documents::UpdateDocumentRequest,
+        reading::UpdateProgressRequest,
+        reading::ReadingProgress,
+        tags::Tag,
+        tags::TagRequest,
+        tags::SetDocumentTagsRequest,
+        annotations::Note,
+        annotations::CreateNoteRequest,
+        annotations::UpdateNoteRequest,
+        annotations::Highlight,
+        annotations::CreateHighlightRequest,
+        annotations::UpdateHighlightRequest,
+        statistics::LearningOverview,
+        ai::SelectionAnalysisRequest,
+        ai::DocumentAnalysisRequest,
+        ai::PromptInfo,
+        ai::TermInfo,
+        ai::ClauseAnalysis,
+        ai::SentenceAnalysis,
+        ai::SelectionAnalysisResponse,
+        ai::FrequentWord,
+        ai::DocumentAnalysisResponse,
+        vocabulary::VocabularyCard,
+        vocabulary::ReviewAnswer,
+        vocabulary::VocabularyList,
+        vocabulary::CreateVocabularyRequest,
+        vocabulary::UpdateVocabularyRequest,
+        vocabulary::ReviewAnswerRequest,
+        response::ErrorBody,
+        response::ErrorDetail
+    )),
+    modifiers(&SecurityAddon),
+    tags((name = "IntelliRead", description = "IntelliRead backend API"))
+)]
 struct ApiDoc;
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
@@ -109,6 +191,18 @@ pub fn app(state: Arc<AppState>) -> Router {
         )
         .route("/tags", get(tags::list).post(tags::create))
         .route("/tags/{id}", put(tags::update).delete(tags::delete))
+        .route(
+            "/vocabulary",
+            get(vocabulary::list).post(vocabulary::create),
+        )
+        .route(
+            "/vocabulary/{id}",
+            get(vocabulary::detail)
+                .patch(vocabulary::update)
+                .delete(vocabulary::delete),
+        )
+        .route("/review/queue", get(vocabulary::review_queue))
+        .route("/review/answer", post(vocabulary::submit_review_answer))
         .route(
             "/notes/{id}",
             put(annotations::update_note).delete(annotations::delete_note),

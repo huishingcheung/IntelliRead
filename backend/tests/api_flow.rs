@@ -691,6 +691,281 @@ async fn ai_analysis_requires_authentication() {
 }
 
 #[tokio::test]
+async fn vocabulary_review_flow_enforces_ownership_and_scheduling() {
+    let app = test_app(2048).await;
+    let owner = register_and_login(&app, "vocab-owner").await;
+    let other = register_and_login(&app, "vocab-other").await;
+    let (_, uploaded) = upload(
+        &app,
+        &owner,
+        "vocab.txt",
+        "The neural network algorithm improves performance. The dataset improves evaluation.",
+    )
+    .await;
+    let document_id = uploaded["data"]["id"].as_str().unwrap();
+    let paragraph_id = uploaded["data"]["paragraphs"][0]["id"].as_str().unwrap();
+
+    let (status, body) = json_request(&app, "GET", "/api/v1/vocabulary", Value::Null, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["success"], false);
+
+    let (status, card) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({
+            "document_id": document_id,
+            "paragraph_id": paragraph_id,
+            "term": "neural network",
+            "pronunciation": "",
+            "definition": "A model inspired by connected neurons.",
+            "example_sentence": "The neural network algorithm improves performance.",
+            "source_text": "The neural network algorithm improves performance."
+        }),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(card["success"], true);
+    assert_eq!(card["data"]["term"], "neural network");
+    assert_eq!(card["data"]["mastery_status"], "new");
+    let vocabulary_id = card["data"]["id"].as_str().unwrap();
+
+    let (status, algorithm) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({
+            "document_id": document_id,
+            "paragraph_id": paragraph_id,
+            "term": "algorithm",
+            "definition": "A step-by-step procedure."
+        }),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let algorithm_id = algorithm["data"]["id"].as_str().unwrap();
+
+    let (status, dataset) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({
+            "document_id": document_id,
+            "paragraph_id": paragraph_id,
+            "term": "dataset",
+            "definition": "A collection of training examples."
+        }),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let dataset_id = dataset["data"]["id"].as_str().unwrap();
+
+    let (status, _) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({
+            "document_id": document_id,
+            "paragraph_id": paragraph_id,
+            "term": "neural network",
+            "definition": "Duplicate card"
+        }),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    let (status, _) = json_request(
+        &app,
+        "POST",
+        "/api/v1/vocabulary",
+        json!({"document_id": document_id, "term": "missing definition"}),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, invalid_patch) = json_request(
+        &app,
+        "PATCH",
+        &format!("/api/v1/vocabulary/{vocabulary_id}"),
+        json!({"mastery_status": "unknown"}),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(invalid_patch["success"], false);
+
+    let (status, patched) = json_request(
+        &app,
+        "PATCH",
+        &format!("/api/v1/vocabulary/{vocabulary_id}"),
+        json!({
+            "definition": "Updated definition.",
+            "example_sentence": "Updated example.",
+            "mastery_status": "learning"
+        }),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(patched["data"]["definition"], "Updated definition.");
+    assert_eq!(patched["data"]["mastery_status"], "learning");
+
+    let (status, list) = json_request(
+        &app,
+        "GET",
+        "/api/v1/vocabulary?page=1&page_size=2&sort=term&order=asc",
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["data"]["total"], 3);
+    let first_page = list["data"]["items"].as_array().unwrap();
+    assert_eq!(first_page.len(), 2);
+    assert_eq!(first_page[0]["term"], "algorithm");
+    assert_eq!(first_page[1]["term"], "dataset");
+
+    let (status, second_page) = json_request(
+        &app,
+        "GET",
+        "/api/v1/vocabulary?page=2&page_size=2&sort=term&order=asc",
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let second_page_items = second_page["data"]["items"].as_array().unwrap();
+    assert_eq!(second_page_items.len(), 1);
+    assert_eq!(second_page_items[0]["term"], "neural network");
+
+    let (status, desc_list) = json_request(
+        &app,
+        "GET",
+        "/api/v1/vocabulary?page=1&page_size=3&sort=term&order=desc",
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(desc_list["data"]["items"][0]["term"], "neural network");
+
+    let (status, other_list) =
+        json_request(&app, "GET", "/api/v1/vocabulary", Value::Null, Some(&other)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(other_list["data"]["total"], 0);
+
+    let (status, _) = json_request(
+        &app,
+        "GET",
+        &format!("/api/v1/vocabulary/{vocabulary_id}"),
+        Value::Null,
+        Some(&other),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = json_request(
+        &app,
+        "POST",
+        "/api/v1/review/answer",
+        json!({"vocabulary_id": vocabulary_id, "answer_result": "easy"}),
+        Some(&other),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, invalid_answer) = json_request(
+        &app,
+        "POST",
+        "/api/v1/review/answer",
+        json!({"vocabulary_id": vocabulary_id, "answer_result": "invalid"}),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(invalid_answer["success"], false);
+
+    let (status, queue) = json_request(
+        &app,
+        "GET",
+        "/api/v1/review/queue?limit=5",
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(queue["data"].as_array().unwrap().len(), 3);
+
+    let (status, answer) = json_request(
+        &app,
+        "POST",
+        "/api/v1/review/answer",
+        json!({"vocabulary_id": vocabulary_id, "answer_result": "good"}),
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(answer["data"]["answer_result"], "good");
+    assert_eq!(answer["data"]["mastery_status"], "familiar");
+    assert!(answer["data"]["next_review_at"].is_string());
+
+    let (status, updated) = json_request(
+        &app,
+        "GET",
+        &format!("/api/v1/vocabulary/{vocabulary_id}"),
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated["data"]["mastery_status"], "familiar");
+    assert!(updated["data"]["next_review_at"].is_string());
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/vocabulary/{dataset_id}"))
+                .header(header::AUTHORIZATION, format!("Bearer {owner}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let (status, _) = json_request(
+        &app,
+        "GET",
+        &format!("/api/v1/vocabulary/{dataset_id}"),
+        Value::Null,
+        Some(&owner),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/vocabulary/{algorithm_id}"))
+                .header(header::AUTHORIZATION, format!("Bearer {other}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn migration_creates_expected_schema_and_valid_foreign_keys() {
     let db = SqlitePoolOptions::new()
         .max_connections(1)
@@ -713,8 +988,10 @@ async fn migration_creates_expected_schema_and_valid_foreign_keys() {
             "highlights",
             "notes",
             "reading_progress",
+            "review_answers",
             "tags",
             "users",
+            "vocabulary_cards",
         ]
     );
     let violations: Vec<(String, i64, String, i64)> = sqlx::query_as("PRAGMA foreign_key_check")
