@@ -39,6 +39,7 @@ pub struct ReviewAnswer {
     pub id: String,
     pub vocabulary_id: String,
     pub answer_result: String,
+    pub mastery_status: String,
     pub reviewed_at: String,
     pub next_review_at: String,
 }
@@ -367,6 +368,7 @@ pub async fn submit_review_answer(
         id: Uuid::new_v4().to_string(),
         vocabulary_id: input.vocabulary_id,
         answer_result: input.answer_result,
+        mastery_status: mastery_status.into(),
         reviewed_at: reviewed_at.to_rfc3339(),
         next_review_at: next_review_at.to_rfc3339(),
     };
@@ -382,7 +384,7 @@ pub async fn submit_review_answer(
         .execute(&mut *tx)
         .await?;
     sqlx::query("UPDATE vocabulary_cards SET mastery_status = ?, next_review_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
-        .bind(mastery_status)
+        .bind(&answer.mastery_status)
         .bind(&answer.next_review_at)
         .bind(&answer.reviewed_at)
         .bind(&answer.vocabulary_id)
@@ -405,7 +407,11 @@ async fn get_card(state: &AppState, user_id: &str, id: &str) -> Result<Vocabular
     .ok_or(AppError::NotFound)
 }
 
-async fn ensure_document(state: &AppState, user_id: &str, document_id: &str) -> Result<(), AppError> {
+async fn ensure_document(
+    state: &AppState,
+    user_id: &str,
+    document_id: &str,
+) -> Result<(), AppError> {
     let exists: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM documents WHERE id = ? AND user_id = ?")
             .bind(document_id)
@@ -424,12 +430,13 @@ async fn ensure_paragraph(
     document_id: &str,
     paragraph_id: &str,
 ) -> Result<(), AppError> {
-    let exists: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM document_paragraphs WHERE id = ? AND document_id = ?")
-            .bind(paragraph_id)
-            .bind(document_id)
-            .fetch_one(&state.db)
-            .await?;
+    let exists: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM document_paragraphs WHERE id = ? AND document_id = ?",
+    )
+    .bind(paragraph_id)
+    .bind(document_id)
+    .fetch_one(&state.db)
+    .await?;
     if exists == 0 {
         Err(AppError::NotFound)
     } else {
@@ -446,7 +453,8 @@ fn validate_required_text<'a>(value: &'a str, field: &str) -> Result<&'a str, Ap
 }
 
 fn normalize_optional(value: Option<String>) -> Option<String> {
-    value.map(|value| value.trim().to_string())
+    value
+        .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }
 
@@ -464,7 +472,10 @@ fn validate_answer_result(result: &str) -> Result<(), AppError> {
     }
 }
 
-fn schedule_review(result: &str, now: chrono::DateTime<Utc>) -> (&'static str, chrono::DateTime<Utc>) {
+fn schedule_review(
+    result: &str,
+    now: chrono::DateTime<Utc>,
+) -> (&'static str, chrono::DateTime<Utc>) {
     match result {
         "wrong" => ("learning", now + Duration::minutes(10)),
         "hard" => ("learning", now + Duration::days(1)),
