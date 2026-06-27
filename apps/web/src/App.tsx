@@ -6,6 +6,8 @@ import { RegisterPage } from './pages/RegisterPage'
 import { DocumentsPage } from './pages/DocumentsPage'
 import { DocumentReaderPage } from './pages/DocumentReaderPage'
 import { DocumentNotesTagsPage } from './pages/DocumentNotesTagsPage'
+import { VocabularyPage } from './pages/VocabularyPage'
+import { ReviewPage } from './pages/ReviewPage'
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/documents/:id" element={<DocumentReaderPage />} />
         <Route path="/documents/:id/notes-tags" element={<DocumentNotesTagsPage />} />
+        <Route path="/vocabulary" element={<VocabularyPage />} />
+        <Route path="/review" element={<ReviewPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

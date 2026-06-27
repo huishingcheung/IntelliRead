@@ -232,6 +232,8 @@ export function HomePage() {
   const sidebarItems = [
     { label: '沉浸阅读', to: recentDocuments[0] ? `/documents/${recentDocuments[0].id}` : null },
     { label: '文献管理', to: '/documents' },
+    { label: '生词本', to: '/vocabulary' },
+    { label: '复习队列', to: '/review' },
     { label: '标签与笔记', to: recentDocuments[0] ? `/documents/${recentDocuments[0].id}/notes-tags` : null },
   ]
 
@@ -249,6 +251,8 @@ export function HomePage() {
             <nav className="flex flex-wrap items-center gap-8 font-[var(--font-ui)] text-lg text-[var(--ink-strong)]">
               <Link data-animate="nav" className="transition hover:text-[var(--accent)]" to="/">首页</Link>
               <Link data-animate="nav" className="transition hover:text-[var(--accent)]" to="/documents">文献库</Link>
+              <Link data-animate="nav" className="transition hover:text-[var(--accent)]" to="/vocabulary">生词本</Link>
+              <Link data-animate="nav" className="transition hover:text-[var(--accent)]" to="/review">复习</Link>
             </nav>
           </div>
 
