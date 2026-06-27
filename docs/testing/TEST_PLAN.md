@@ -42,5 +42,6 @@
 | V07 | PATCH/DELETE 生词卡 | 更新成功；删除后再次读取返回 `404` | 同上 |
 | V08 | 分页排序 | 多条生词按分页和排序参数稳定返回 | 同上 |
 | V09 | 复习队列与答题 | 队列返回待复习词汇；答题后更新 `mastery_status` 和 `next_review_at` | 同上 |
+| E01 | 浏览器学习闭环 | 注册、导入、AI 分析、术语收藏和复习均可在真实 Chromium 中完成 | `apps/web/e2e/learning-flow.spec.ts` |
 
-质量门禁为 `cargo fmt --all -- --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo test --all-features`、`cargo build --all-features`。
+质量门禁为 `cargo fmt --all -- --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo test --all-features`、`cargo build --all-features`、`npm run lint`、`npm run build` 和 `npm run test:e2e`。Playwright 验收默认只在 GitHub Actions 的临时环境执行。
