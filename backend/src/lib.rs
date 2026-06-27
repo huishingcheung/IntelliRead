@@ -10,6 +10,7 @@ pub mod response;
 pub mod state;
 pub mod statistics;
 pub mod tags;
+pub mod vocabulary;
 
 use std::sync::Arc;
 
@@ -109,6 +110,15 @@ pub fn app(state: Arc<AppState>) -> Router {
         )
         .route("/tags", get(tags::list).post(tags::create))
         .route("/tags/{id}", put(tags::update).delete(tags::delete))
+        .route("/vocabulary", get(vocabulary::list).post(vocabulary::create))
+        .route(
+            "/vocabulary/{id}",
+            get(vocabulary::detail)
+                .patch(vocabulary::update)
+                .delete(vocabulary::delete),
+        )
+        .route("/review/queue", get(vocabulary::review_queue))
+        .route("/review/answer", post(vocabulary::submit_review_answer))
         .route(
             "/notes/{id}",
             put(annotations::update_note).delete(annotations::delete_note),
