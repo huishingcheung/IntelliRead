@@ -164,6 +164,7 @@
 
 ## 第一版复习时间规则
 
+
 | 答题结果 | 下次复习间隔 | 建议掌握状态 |
 |---|---|---|
 | `wrong` | 10 分钟后 | `learning` |
@@ -171,6 +172,103 @@
 | `good` | 3 天后 | `familiar` |
 | `easy` | 7 天后 | `mastered` |
 
+## 第一版复习调度算法
+
+第一版复习模块采用简化的间隔复习算法。系统根据用户每次复习时提交的 `answer_result` 更新生词卡的 `mastery_status` 和 `next_review_at`。
+
+### 复习队列生成算法
+
+复习队列只返回当前用户自己的生词卡，筛选规则如下：
+
+1. 根据当前登录用户的 `user_id` 查询生词卡。
+2. 只返回 `next_review_at` 为空，或 `next_review_at` 小于等于当前时间的词汇。
+3. 默认排除 `mastery_status = mastered` 的词汇。
+4. 如果传入 `document_id`，则只返回该文献下的词汇。
+5. 按 `next_review_at` 升序排列，较早需要复习的词汇排在前面。
+6. 根据 `limit` 参数限制返回数量，默认返回 20 条。
+
+伪代码：
+
+```text
+review_queue = vocabulary_cards
+  where user_id = current_user_id
+  and (next_review_at is null or next_review_at <= now)
+  and mastery_status != "mastered"
+  and document_id matches query if provided
+  order by next_review_at asc
+  limit query.limit or 20
+  
+  ### 答题结果处理算法
+
+用户提交复习结果后，系统根据 `answer_result` 更新复习状态。
+
+| 答题结果 | 含义 | 下次复习时间 | 掌握状态 |
+|---|---|---|---|
+| `wrong` | 完全不认识或答错 | 当前时间 + 10 分钟 | `learning` |
+| `hard` | 勉强记得 | 当前时间 + 1 天 | `learning` |
+| `good` | 基本掌握 | 当前时间 + 3 天 | `familiar` |
+| `easy` | 熟练掌握 | 当前时间 + 7 天 | `mastered` |
+
+伪代码：
+
+```text
+if answer_result == "wrong":
+    next_review_at = now + 10 minutes
+    mastery_status = "learning"
+
+if answer_result == "hard":
+    next_review_at = now + 1 day
+    mastery_status = "learning"
+
+if answer_result == "good":
+    next_review_at = now + 3 days
+    mastery_status = "familiar"
+
+if answer_result == "easy":
+    next_review_at = now + 7 days
+    mastery_status = "mastered"
+```
+
+### 重复生词处理算法
+
+为避免用户重复添加同一个生词，第一版按以下规则判断重复：
+
+1. 同一 `user_id`
+2. 同一 `document_id`
+3. 相同的 `term`
+
+如果以上三个字段都相同，则认为是重复生词，接口返回 `409 Conflict`。
+
+伪代码：
+
+```text
+exists = vocabulary_cards
+  where user_id = current_user_id
+  and document_id = request.document_id
+  and lower(term) = lower(request.term)
+
+if exists:
+    return 409 Conflict
+```
+
+### 用户隔离算法
+
+所有查询、更新、删除和复习操作都必须带上当前登录用户的 `user_id` 条件。
+
+例如获取单个生词卡时，不能只按 `id` 查询：
+
+```text
+where id = vocabulary_id
+```
+
+必须按 `id + user_id` 查询：
+
+```text
+where id = vocabulary_id
+and user_id = current_user_id
+```
+
+这样可以避免用户访问或修改其他人的生词卡。
 ## 错误处理
 
 接口应沿用项目已有错误响应格式，并参考 `docs/api/ERROR_CODES.md` 中定义的错误码。
