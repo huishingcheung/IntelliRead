@@ -6,7 +6,7 @@
 | 项目名称 | IntelliRead |
 | 负责人 | 成员 B |
 | 状态 | Implemented |
-| 最后更新 | 2026-06-12 |
+| 最后更新 | 2026-06-29 |
 
 Base URL：`/api/v1`。受保护接口使用 `Authorization: Bearer <JWT>`。
 

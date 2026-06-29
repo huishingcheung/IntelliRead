@@ -4,7 +4,7 @@
 
 IntelliRead 是一个基于 Rust 与 AI 驱动的外语文献阅读与词汇学习平台。项目面向英文论文、技术文档等长文本阅读场景，目标是在阅读过程中减少频繁查词带来的打断，并把高亮、笔记、标签和后续复习资料沉淀为可持续使用的学习资产。
 
-当前主线已经整合 Rust/Axum 后端与 React/Vite 前端，核心阅读闭环可用于课程演示；AI 划词解析和整篇文档分析已提供第一版本地确定性实现，词汇卡和复习系统仍处于接口契约确认阶段。
+当前主线已经整合 Rust/Axum 后端与 React/Vite 前端，核心阅读闭环可用于课程演示；AI 划词解析和整篇文档分析已提供第一版实现，词汇卡和复习系统也已完成包含术语入词、词汇管理、到期队列和四级固定间隔反馈的第一版闭环。
 
 ## 当前状态
 
@@ -160,7 +160,7 @@ npm run build
 
 ## 当前协作重点
 
-AI 阅读助手、词汇卡和复习队列已经形成第一版前后端闭环。默认 AI 输出来自 `local-deterministic` provider，适合课程演示和稳定测试；配置 `AI_PROVIDER=deepseek` 和 `DEEPSEEK_API_KEY` 后可调用 DeepSeek V4 Pro。下一阶段重点是 GitHub Actions 端到端验收、部署配置和课程演示流程整理；如需继续扩展外部大模型，还应补充调用审计策略。
+AI 阅读助手、词汇卡和复习队列已经形成第一版前后端闭环。默认 AI 输出来自 `local-deterministic` provider，适合课程演示和稳定测试；配置 `AI_PROVIDER=deepseek` 和 `DEEPSEEK_API_KEY` 后可调用 DeepSeek V4 Pro。GitHub Actions 已覆盖后端质量门禁、前端 lint/build 和 Chromium 主流程验收。下一阶段重点是部署配置、演示彩排、课程报告和截图整理；如需继续扩展外部大模型，还应补充调用审计策略。
 
 ## 提交注意
 
