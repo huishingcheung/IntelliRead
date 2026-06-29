@@ -6,9 +6,9 @@
 | 项目名称 | IntelliRead |
 | 负责人 | 成员 B |
 | 状态 | Implemented |
-| 最后更新 | 2026-06-12 |
+| 最后更新 | 2026-06-29 |
 
-实现来源为 `backend/migrations/0001_core.sql` 和 `0002_document_features.sql`，详细字段表见 [DATA_MODEL](../project-memory/DATA_MODEL.md)。
+实现来源为 `backend/migrations/0001_core.sql`、`0002_document_features.sql` 和 `0003_vocabulary_review.sql`。详细字段与约束以 migration 为准，词汇与复习字段说明见 [词汇与复习 API](../api/VOCABULARY_REVIEW_API.md)。
 
 ```mermaid
 erDiagram
